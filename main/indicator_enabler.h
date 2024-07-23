@@ -9,7 +9,7 @@
 
 #include "indicator_display.h"
 
-// #include "esp32_rp2040.h"
+#include "esp32_rp2040.h"
 
 // #include "indicator_sensor.h"
 
