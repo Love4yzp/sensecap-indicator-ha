@@ -6,7 +6,10 @@
 #include <time.h>
 
 #include <bsp_board.h>
+#include "esp_event.h"
 #include "esp_event_base.h"
+
+#include "esp_log.h"
 
 #ifdef __cplusplus
 extern "C" {

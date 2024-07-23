@@ -32619,7 +32619,7 @@
                   {
                     "nid": -1962953335,
                     "strtype": "OBJECT/Name",
-                    "strval": "sleep mode time cfg1",
+                    "strval": "sleep mode time cfg",
                     "InheritedType": 10
                   },
                   {
@@ -33012,7 +33012,7 @@
                           {
                             "nid": 1705392412,
                             "strtype": "MODIFY FLAG/Object",
-                            "strval": "-",
+                            "strval": "GUID74179255-610050S503803205",
                             "InheritedType": 9
                           },
                           {
@@ -33335,7 +33335,7 @@
               {
                 "nid": -649377428,
                 "strtype": "OBJECT/Name",
-                "strval": "sleep mode time1",
+                "strval": "sleep mode time",
                 "InheritedType": 10
               },
               {
@@ -33601,8 +33601,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "PANEL",
-            "tree_closed": true
+            "saved_objtypeKey": "PANEL"
           },
           {
             "guid": "GUID70837838-605052S503723205",
@@ -33616,7 +33615,7 @@
                   {
                     "nid": -1586168510,
                     "strtype": "OBJECT/Name",
-                    "strval": "sleep mode title1",
+                    "strval": "sleep mode title",
                     "InheritedType": 10
                   },
                   {
@@ -33908,7 +33907,7 @@
                   {
                     "nid": -2135324917,
                     "strtype": "OBJECT/Name",
-                    "strval": "sleep mode cfg1",
+                    "strval": "sleep mode cfg",
                     "InheritedType": 10
                   },
                   {
@@ -34242,7 +34241,7 @@
                           {
                             "nid": -2119348731,
                             "strtype": "MODIFY FLAG/Object",
-                            "strval": "-",
+                            "strval": "GUID74179255-610050S503803205",
                             "InheritedType": 9
                           },
                           {
@@ -34286,7 +34285,7 @@
                           {
                             "nid": -378540133,
                             "strtype": "MODIFY FLAG/Object",
-                            "strval": "-",
+                            "strval": "GUID87451005-602033S503703205",
                             "InheritedType": 9
                           },
                           {
@@ -34357,7 +34356,7 @@
                           {
                             "nid": -674890813,
                             "strtype": "MODIFY FLAG/Object",
-                            "strval": "-",
+                            "strval": "GUID87451005-602033S503703205",
                             "InheritedType": 9
                           },
                           {
@@ -34388,7 +34387,7 @@
               {
                 "nid": 20661467,
                 "strtype": "OBJECT/Name",
-                "strval": "sleep mode1",
+                "strval": "sleep mode",
                 "InheritedType": 10
               },
               {
@@ -34655,8 +34654,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "PANEL",
-            "tree_closed": true
+            "saved_objtypeKey": "PANEL"
           },
           {
             "guid": "GUID4939526-608982S503783205",
@@ -34670,7 +34668,7 @@
                   {
                     "nid": -1100583895,
                     "strtype": "OBJECT/Name",
-                    "strval": "brighness cfg1",
+                    "strval": "brighness cfg",
                     "InheritedType": 10
                   },
                   {
@@ -35004,7 +35002,7 @@
                   {
                     "nid": 757163638,
                     "strtype": "OBJECT/Name",
-                    "strval": "brighness title1",
+                    "strval": "brighness title",
                     "InheritedType": 10
                   },
                   {
@@ -36172,7 +36170,7 @@
               {
                 "nid": -1833667983,
                 "strtype": "OBJECT/Name",
-                "strval": "display keyboard1",
+                "strval": "display keyboard",
                 "InheritedType": 10
               },
               {
@@ -36432,7 +36430,7 @@
               {
                 "nid": 1603185801,
                 "strtype": "KEYBOARD/Target_textarea",
-                "strval": "-",
+                "strval": "GUID52511813-601446S503693205",
                 "InheritedType": 9
               },
               {
@@ -36499,7 +36497,7 @@
                       {
                         "nid": 1791618577,
                         "strtype": "MODIFY FLAG/Object",
-                        "strval": "-",
+                        "strval": "GUID74179255-610050S503803205",
                         "InheritedType": 9
                       },
                       {
@@ -36570,7 +36568,7 @@
                       {
                         "nid": 738648454,
                         "strtype": "MODIFY FLAG/Object",
-                        "strval": "-",
+                        "strval": "GUID74179255-610050S503803205",
                         "InheritedType": 9
                       },
                       {
@@ -36641,7 +36639,7 @@
                       {
                         "nid": -1813742394,
                         "strtype": "MODIFY FLAG/Object",
-                        "strval": "-",
+                        "strval": "GUID87451005-602033S503703205",
                         "InheritedType": 9
                       },
                       {
@@ -36971,7 +36969,8 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "LABEL"
+            "saved_objtypeKey": "LABEL",
+            "tree_closed": true
           },
           {
             "guid": "GUID54715192-611230S503833205",
@@ -42368,7 +42367,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 134,
+    "backup_cnt": 136,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",
