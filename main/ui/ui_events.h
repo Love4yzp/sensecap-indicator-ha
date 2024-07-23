@@ -10,6 +10,9 @@
 extern "C" {
 #endif
 
+void brighness_cfg_event_cb(lv_event_t * e);
+void display_cfg_apply_event_cb(lv_event_t * e);
+
 #ifdef __cplusplus
 } /*extern "C"*/
 #endif

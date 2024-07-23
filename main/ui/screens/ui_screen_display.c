@@ -153,6 +153,7 @@ void ui_screen_display_screen_init(void)
 
     lv_obj_add_event_cb(ui_sleep_mode_time_cfg, ui_event_sleep_mode_time_cfg, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_sleep_mode_cfg, ui_event_sleep_mode_cfg, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_brighness_cfg, ui_event_brighness_cfg, LV_EVENT_ALL, NULL);
     lv_keyboard_set_textarea(ui_display_keyboard, ui_sleep_mode_time_cfg);
     lv_obj_add_event_cb(ui_display_keyboard, ui_event_display_keyboard, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_back3, ui_event_back3, LV_EVENT_ALL, NULL);

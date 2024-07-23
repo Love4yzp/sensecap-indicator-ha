@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "freertos/FreeRTOS.h"
+
 #include <bsp_board.h>
 #include "esp_event.h"
 #include "esp_event_base.h"

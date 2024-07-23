@@ -157,6 +157,7 @@ lv_obj_t * ui_sleep_mode_title;
 void ui_event_sleep_mode_cfg(lv_event_t * e);
 lv_obj_t * ui_sleep_mode_cfg;
 lv_obj_t * ui_brighness1;
+void ui_event_brighness_cfg(lv_event_t * e);
 lv_obj_t * ui_brighness_cfg;
 lv_obj_t * ui_brighness_title;
 lv_obj_t * ui_brighness_icon_3;
@@ -388,6 +389,14 @@ void ui_event_sleep_mode_cfg(lv_event_t * e)
         _ui_flag_modify(ui_sleep_mode_time, LV_OBJ_FLAG_HIDDEN, _UI_MODIFY_FLAG_REMOVE);
     }
 }
+void ui_event_brighness_cfg(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    lv_obj_t * target = lv_event_get_target(e);
+    if(event_code == LV_EVENT_VALUE_CHANGED) {
+        brighness_cfg_event_cb(e);
+    }
+}
 void ui_event_display_keyboard(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
@@ -408,6 +417,7 @@ void ui_event_back3(lv_event_t * e)
     lv_obj_t * target = lv_event_get_target(e);
     if(event_code == LV_EVENT_CLICKED) {
         _ui_screen_change(&ui_screen_setting, LV_SCR_LOAD_ANIM_MOVE_TOP, 200, 0, &ui_screen_setting_screen_init);
+        display_cfg_apply_event_cb(e);
     }
 }
 void ui_event_back_wifi1(lv_event_t * e)

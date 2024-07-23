@@ -153,6 +153,7 @@ extern lv_obj_t * ui_sleep_mode_title;
 void ui_event_sleep_mode_cfg(lv_event_t * e);
 extern lv_obj_t * ui_sleep_mode_cfg;
 extern lv_obj_t * ui_brighness1;
+void ui_event_brighness_cfg(lv_event_t * e);
 extern lv_obj_t * ui_brighness_cfg;
 extern lv_obj_t * ui_brighness_title;
 extern lv_obj_t * ui_brighness_icon_3;
