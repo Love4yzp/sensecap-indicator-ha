@@ -50,3 +50,49 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# config files
+*.toml
+
+# emacs temp file suffixes
+*~
+.#*
+\#*#
+
+# eclipse setting
+.settings
+
+# MacOS directory files
+.DS_Store
+
+# VS Code Settings
+.vscode/
+
+# Clion Settings
+*.idea/
+
+# Clion build directory
+*cmake-build-debug
+
+*.tmp
+
+# Clangd Cache
+
+.cache/
+
+# SquareLine Studio
+
+squareline_ui_project/autosave
+squareline_ui_project/backup
+squareline_ui_project/cache
+squareline_ui_project/assets/**/*bin
+squareline_ui_project/assets/**/*fcfg
+squareline_ui_project/assets/**/*c
+
+
+
+# ignore project file
+sdkconfig
+sdkconfig.old
+dependencies.lock
+build
