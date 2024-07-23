@@ -4089,6 +4089,7 @@
                   },
                   {
                     "nid": -609898034,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -4135,6 +4136,44 @@
                       }
                     ],
                     "InheritedType": 10
+                  },
+                  {
+                    "nid": 2076634241,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": 1170804738,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -301322013,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1084816708,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -573035003,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1302183279,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
+                      }
+                    ],
+                    "InheritedType": 10
                   }
                 ],
                 "InheritedType": 4
@@ -4165,6 +4204,7 @@
                   },
                   {
                     "nid": -1358067465,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -4208,6 +4248,44 @@
                         "nid": 1867574740,
                         "strtype": "IMAGE_PROPERTY/Value_",
                         "InheritedType": 6
+                      }
+                    ],
+                    "InheritedType": 10
+                  },
+                  {
+                    "nid": -61443338,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": 1567772563,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 674635531,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -375189968,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1736604059,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 432676716,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
                       }
                     ],
                     "InheritedType": 10
@@ -5174,6 +5252,7 @@
                   },
                   {
                     "nid": 364512710,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -5220,6 +5299,44 @@
                       }
                     ],
                     "InheritedType": 10
+                  },
+                  {
+                    "nid": -362562555,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": -1572615772,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 721692767,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1750700805,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1463532827,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 354416469,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
+                      }
+                    ],
+                    "InheritedType": 10
                   }
                 ],
                 "InheritedType": 4
@@ -5250,6 +5367,7 @@
                   },
                   {
                     "nid": 1271319052,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -5296,12 +5414,51 @@
                       }
                     ],
                     "InheritedType": 10
+                  },
+                  {
+                    "nid": -745206587,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": -1117508340,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -474065354,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1196946037,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1502031798,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -479141185,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
+                      }
+                    ],
+                    "InheritedType": 10
                   }
                 ],
                 "InheritedType": 4
               }
             ],
-            "saved_objtypeKey": "BUTTON"
+            "saved_objtypeKey": "BUTTON",
+            "tree_closed": true
           },
           {
             "guid": "GUID74372434-373129S582473205",
@@ -5933,7 +6090,7 @@
                     "disabled": false,
                     "nid": 1512149324,
                     "strtype": "_event/EventHandler",
-                    "strval": "CLICKED",
+                    "strval": "CHECKED(VALUE_CHANGED)",
                     "childs": [
                       {
                         "nid": -130911140,
@@ -5951,6 +6108,109 @@
                         "nid": -750155573,
                         "strtype": "_custom/condition_P",
                         "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -945495762,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 831797789,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -1032920013,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -2009727529,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 782506020,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "swich_event_cb",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -774153729,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "True",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
+                  },
+                  {
+                    "disabled": false,
+                    "nid": 1425318802,
+                    "strtype": "SWITCH/EventHandler",
+                    "strval": "UNCHECKED(VALUE_CHANGED)",
+                    "childs": [
+                      {
+                        "nid": 471497360,
+                        "strtype": "_event/name",
+                        "strval": "Event18",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -268645771,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 574442614,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1640680751,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": -788687111,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -614396569,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -234114961,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -1511378569,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "swich_event_cb",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 825612806,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "True",
+                            "InheritedType": 2
+                          }
+                        ],
                         "InheritedType": 10
                       }
                     ],
@@ -6268,60 +6528,6 @@
                 "strtype": "BUTTON/Style_main",
                 "strval": "lv.PART.MAIN, Rectangle, Pad, Text ",
                 "InheritedType": 11
-              },
-              {
-                "disabled": false,
-                "nid": 314151409,
-                "strtype": "_event/EventHandler",
-                "strval": "CHECKED(VALUE_CHANGED)",
-                "childs": [
-                  {
-                    "nid": 2038309290,
-                    "strtype": "_event/name",
-                    "strval": "Event18",
-                    "InheritedType": 10
-                  },
-                  {
-                    "nid": -1927428524,
-                    "strtype": "_event/condition_C",
-                    "strval": "",
-                    "InheritedType": 10
-                  },
-                  {
-                    "nid": 490110658,
-                    "strtype": "_event/condition_P",
-                    "strval": "",
-                    "InheritedType": 10
-                  }
-                ],
-                "InheritedType": 4
-              },
-              {
-                "disabled": false,
-                "nid": -552559939,
-                "strtype": "_event/EventHandler",
-                "strval": "UNCHECKED(VALUE_CHANGED)",
-                "childs": [
-                  {
-                    "nid": -912234940,
-                    "strtype": "_event/name",
-                    "strval": "Event19",
-                    "InheritedType": 10
-                  },
-                  {
-                    "nid": -1023282721,
-                    "strtype": "_event/condition_C",
-                    "strval": "",
-                    "InheritedType": 10
-                  },
-                  {
-                    "nid": 1012073277,
-                    "strtype": "_event/condition_P",
-                    "strval": "",
-                    "InheritedType": 10
-                  }
-                ],
-                "InheritedType": 4
               }
             ],
             "saved_objtypeKey": "BUTTON"
@@ -17509,6 +17715,7 @@
                   },
                   {
                     "nid": -1229252972,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -17555,6 +17762,44 @@
                       }
                     ],
                     "InheritedType": 10
+                  },
+                  {
+                    "nid": 1924834607,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": 380373013,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1894985803,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1765800511,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -731062343,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 361897335,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
+                      }
+                    ],
+                    "InheritedType": 10
                   }
                 ],
                 "InheritedType": 4
@@ -17585,6 +17830,7 @@
                   },
                   {
                     "nid": 37739395,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -17628,6 +17874,44 @@
                         "nid": -2072116185,
                         "strtype": "IMAGE_PROPERTY/Value_",
                         "InheritedType": 6
+                      }
+                    ],
+                    "InheritedType": 10
+                  },
+                  {
+                    "nid": -2025946058,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": 256232608,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -793459248,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1113844925,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 783715872,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1801591782,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
                       }
                     ],
                     "InheritedType": 10
@@ -18755,6 +19039,44 @@
                             "strtype": "SET TEXT VALUE FROM SLIDER/Postfix",
                             "strval": " °C",
                             "InheritedType": 10
+                          }
+                        ],
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 582716967,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 912343270,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -748649858,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 2007825769,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -1654776673,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "swich_arc_event_cb",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 397385008,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "True",
+                            "InheritedType": 2
                           }
                         ],
                         "InheritedType": 10
@@ -20084,6 +20406,44 @@
                       }
                     ],
                     "InheritedType": 10
+                  },
+                  {
+                    "nid": -638290330,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": 906410296,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 2037229369,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1665795379,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1365831968,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 2117190802,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
+                      }
+                    ],
+                    "InheritedType": 10
                   }
                 ],
                 "InheritedType": 4
@@ -20114,6 +20474,7 @@
                   },
                   {
                     "nid": 420249635,
+                    "flags": 1048576,
                     "strtype": "_event/action",
                     "strval": "IMAGE_PROPERTY",
                     "childs": [
@@ -20157,6 +20518,44 @@
                         "nid": -924223308,
                         "strtype": "IMAGE_PROPERTY/Value_",
                         "InheritedType": 6
+                      }
+                    ],
+                    "InheritedType": 10
+                  },
+                  {
+                    "nid": 638637856,
+                    "strtype": "_event/action",
+                    "strval": "CALL FUNCTION",
+                    "childs": [
+                      {
+                        "nid": -961771545,
+                        "strtype": "CALL FUNCTION/Name",
+                        "strval": "CALL FUNCTION",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 41372432,
+                        "strtype": "CALL FUNCTION/Call",
+                        "strval": "<{Function_name}>( event_struct )",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 2135196116,
+                        "strtype": "CALL FUNCTION/CallC",
+                        "strval": "<{Function_name}>( e );",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -338407953,
+                        "strtype": "CALL FUNCTION/Function_name",
+                        "strval": "swich_event_cb",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1085406918,
+                        "strtype": "CALL FUNCTION/Dont_export_function",
+                        "strval": "True",
+                        "InheritedType": 2
                       }
                     ],
                     "InheritedType": 10
@@ -20497,7 +20896,7 @@
                   {
                     "nid": -1908898728,
                     "strtype": "OBJECT/Name",
-                    "strval": "switch7 switch1",
+                    "strval": "switch7 arc 1",
                     "InheritedType": 10
                   },
                   {
@@ -20781,6 +21180,136 @@
                     "strtype": "SWITCH/Style_knob",
                     "strval": "lv.PART.KNOB, Rectangle, Pad",
                     "InheritedType": 11
+                  },
+                  {
+                    "disabled": false,
+                    "nid": -1888894633,
+                    "strtype": "SWITCH/EventHandler",
+                    "strval": "CHECKED(VALUE_CHANGED)",
+                    "childs": [
+                      {
+                        "nid": 1229269713,
+                        "strtype": "_event/name",
+                        "strval": "Event19",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1814436688,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1709876767,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -2082086443,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 1214693250,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 2085039464,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1759314537,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -997826067,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "swich_event_cb",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1272560682,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "True",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
+                  },
+                  {
+                    "disabled": false,
+                    "nid": 128662626,
+                    "strtype": "SWITCH/EventHandler",
+                    "strval": "UNCHECKED(VALUE_CHANGED)",
+                    "childs": [
+                      {
+                        "nid": -666253443,
+                        "strtype": "_event/name",
+                        "strval": "Event24",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 47794750,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1649029164,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1096256793,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 1390725038,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1680982412,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 854467414,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -936451810,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "swich_event_cb",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 615071154,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "True",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
                   }
                 ],
                 "saved_objtypeKey": "SWITCH",
@@ -20846,7 +21375,6 @@
               },
               {
                 "nid": 85047667,
-                "flags": 1048576,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
               },
@@ -20859,7 +21387,7 @@
               {
                 "nid": -295387838,
                 "strtype": "OBJECT/Clickable",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
@@ -20871,13 +21399,13 @@
               {
                 "nid": 1515986745,
                 "strtype": "OBJECT/Press_lock",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
                 "nid": 1100673735,
                 "strtype": "OBJECT/Click_focusable",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
@@ -21077,8 +21605,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BUTTON",
-            "tree_closed": true
+            "saved_objtypeKey": "BUTTON"
           },
           {
             "guid": "GUID59362847-415002S166203205",
@@ -21738,9 +22265,75 @@
                     "strtype": "SLIDER/Style_knob",
                     "strval": "lv.PART.KNOB, Rectangle, Pad",
                     "InheritedType": 11
+                  },
+                  {
+                    "disabled": false,
+                    "nid": -891562976,
+                    "strtype": "SLIDER/EventHandler",
+                    "strval": "VALUE_CHANGED",
+                    "childs": [
+                      {
+                        "nid": -729697307,
+                        "strtype": "_event/name",
+                        "strval": "Event25",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1175594006,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 2018052287,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -450515350,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": 727883738,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -230214305,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1292789119,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -1466746440,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "swich_arc_event_cb",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": 1559439582,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "True",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
                   }
                 ],
-                "saved_objtypeKey": "SLIDER"
+                "saved_objtypeKey": "SLIDER",
+                "tree_closed": true
               }
             ],
             "locked": false,
@@ -21814,7 +22407,7 @@
               {
                 "nid": -393955706,
                 "strtype": "OBJECT/Clickable",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
@@ -42467,7 +43060,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 141,
+    "backup_cnt": 159,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",

@@ -270,6 +270,7 @@ void ui_screen_ha_mix_screen_init(void)
 
     lv_obj_add_event_cb(ui_switch1, ui_event_switch1, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_switch2, ui_event_switch2, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_switch3_switch1, ui_event_switch3_switch1, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_wifi__st_button_ha_data1, ui_event_wifi__st_button_ha_data1, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_screen_ha_mix, ui_event_screen_ha_mix, LV_EVENT_ALL, NULL);
 

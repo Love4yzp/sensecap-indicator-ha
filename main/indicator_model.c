@@ -22,6 +22,10 @@ int indicator_model_init(void) {
 	#endif
 #endif
 
+#ifdef INDICATOR_MQTT_H
+	indicator_mqtt_init();
+#endif
+
 #ifdef INDICATOR_LORAWAN_H
 	indicator_lorawan_init();
 	#ifdef indicator_CMD_H

@@ -89,7 +89,7 @@ squareline_ui_project/assets/**/*bin
 squareline_ui_project/assets/**/*fcfg
 squareline_ui_project/assets/**/*c
 
-
+main/ui/components/
 
 # ignore project file
 sdkconfig

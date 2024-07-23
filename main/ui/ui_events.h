@@ -10,6 +10,8 @@
 extern "C" {
 #endif
 
+void swich_event_cb(lv_event_t * e);
+void swich_arc_event_cb(lv_event_t * e);
 void brighness_cfg_event_cb(lv_event_t * e);
 void display_cfg_apply_event_cb(lv_event_t * e);
 

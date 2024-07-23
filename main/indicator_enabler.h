@@ -13,6 +13,8 @@
 
 #include "indicator_sensor.h"
 
+#include "indicator_mqtt.h"
+
 // #include "indicator_lorawan.h"
 // #include "indicator_cmd.h"
 // #include "indicator_terminal.h"

@@ -110,17 +110,6 @@ struct sensor_data_minmax
 	X(SGP40_SENSOR_TVOC, "SGP40_TVOC")         \
 	X(SHT41_SENSOR_TEMP, "SHT41_TEMP")         \
 	X(SHT41_SENSOR_HUMIDITY, "SHT41_HUMIDITY") \
-	// X(SEN5X_Pm2p5, "SEN5X_PM2.5")             \
-    // X(SEN5X_Pm1p0, "SEN5X_PM1.0")             \
-    // X(SEN5X_Pm4p0, "SEN5X_PM4.0")             \
-    // X(SEN5X_Pm10p0, "SEN5X_PM10.0")             \
-    // X(SEN5X_Humidity, "SEN5X_Humidity")       \
-    // X(SEN5X_Temperature, "SEN5X_Temperature") \
-    // X(SEN5X_vocIndex, "SEN5X_vocIndex")       \
-    // X(SEN5X_noxIndex, "SEN5X_noxIndex")       \
-    // X(SFA3X_HCHO, "SFA3X_HCHO")               \
-    // X(SFA3X_HUMIDITY, "SFA3X_HUMIDITY")       \
-    // X(SFA3X_TEMP, "SFA3X_TEMP")
 
 #define X(type, str) type,
 enum sensor_data_type
