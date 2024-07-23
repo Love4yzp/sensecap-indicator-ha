@@ -637,7 +637,7 @@
                   {
                     "nid": -550533739,
                     "strtype": "OBJECT/Name",
-                    "strval": "sensor5 data1",
+                    "strval": "sensor data temp 1",
                     "InheritedType": 10
                   },
                   {
@@ -2195,7 +2195,7 @@
                   {
                     "nid": -1963061582,
                     "strtype": "OBJECT/Name",
-                    "strval": "sensor6 data1",
+                    "strval": "sensor data humi 1",
                     "InheritedType": 10
                   },
                   {
@@ -3120,8 +3120,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BUTTON",
-            "tree_closed": true
+            "saved_objtypeKey": "BUTTON"
           },
           {
             "guid": "GUID4754839-368936S582433205",
@@ -10578,7 +10577,7 @@
                   {
                     "nid": -1652434644,
                     "strtype": "OBJECT/Name",
-                    "strval": "sensor1 data1",
+                    "strval": "sensor data temp 2",
                     "InheritedType": 10
                   },
                   {
@@ -11504,8 +11503,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BUTTON",
-            "tree_closed": true
+            "saved_objtypeKey": "BUTTON"
           },
           {
             "guid": "GUID70868100-315145S153883205",
@@ -12137,7 +12135,7 @@
                   {
                     "nid": -253868231,
                     "strtype": "OBJECT/Name",
-                    "strval": "sensor2 data1",
+                    "strval": "sensor data humi 2",
                     "InheritedType": 10
                   },
                   {
@@ -13694,7 +13692,7 @@
                   {
                     "nid": -112587904,
                     "strtype": "OBJECT/Name",
-                    "strval": "sensor3 data1",
+                    "strval": "sensor data tvoc 2",
                     "InheritedType": 10
                   },
                   {
@@ -14619,8 +14617,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BUTTON",
-            "tree_closed": true
+            "saved_objtypeKey": "BUTTON"
           },
           {
             "guid": "GUID39517339-320789S153923205",
@@ -15252,7 +15249,7 @@
                   {
                     "nid": 651107426,
                     "strtype": "OBJECT/Name",
-                    "strval": "sensor4 data1",
+                    "strval": "sensor data co2 2",
                     "InheritedType": 10
                   },
                   {
@@ -42470,7 +42467,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 139,
+    "backup_cnt": 141,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",

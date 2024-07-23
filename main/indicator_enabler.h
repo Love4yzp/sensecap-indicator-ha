@@ -11,7 +11,7 @@
 
 #include "esp32_rp2040.h"
 
-// #include "indicator_sensor.h"
+#include "indicator_sensor.h"
 
 // #include "indicator_lorawan.h"
 // #include "indicator_cmd.h"

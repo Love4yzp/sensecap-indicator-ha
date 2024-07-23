@@ -132,7 +132,7 @@ enum sensor_data_type
 struct view_data_sensor_data
 {
 	enum sensor_data_type sensor_type;
-	float vaule;
+	float value;
 };
 
 struct view_data_sensor_history_data

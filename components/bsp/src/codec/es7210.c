@@ -498,11 +498,11 @@ esp_err_t es7210_adc_set_gain(es7210_input_mics_t mic_mask, es7210_gain_value_t 
 esp_err_t es7210_adc_set_gain_all(es7210_gain_value_t gain)
 {
     esp_err_t ret = ESP_OK;
-    uint32_t  max_gain_vaule = 14;
+    uint32_t  max_gain_value = 14;
     if (gain < 0) {
         gain = 0;
-    } else if (gain > max_gain_vaule) {
-        gain = max_gain_vaule;
+    } else if (gain > max_gain_value) {
+        gain = max_gain_value;
     }
     ESP_LOGD(TAG, "SET: gain:%d", gain);
     if (mic_select & ES7210_INPUT_MIC1) {

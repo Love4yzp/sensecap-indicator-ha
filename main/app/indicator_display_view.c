@@ -12,9 +12,9 @@
 void brighness_cfg_event_cb(lv_event_t* e) // Value changed
 {
 	lv_obj_t* slider = lv_event_get_target(e);
-	int32_t vaule = lv_slider_get_value(slider);
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_BRIGHTNESS_UPDATE, &vaule,
-					  sizeof(vaule), portMAX_DELAY);
+	int32_t value = lv_slider_get_value(slider);
+	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_BRIGHTNESS_UPDATE, &value,
+					  sizeof(value), portMAX_DELAY);
 }
 
 // static void __display_cfg_apply_event_cb(lv_event_t * e)
