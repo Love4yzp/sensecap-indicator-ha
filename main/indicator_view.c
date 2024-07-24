@@ -12,8 +12,7 @@ int indicator_view_init(void) {
 #ifdef SENSOR_H
 	view_sensor_init();
 #endif
-
-#ifdef INDICATOR_LORAWAN_H
-	view_lorawan_init();
-#endif
+// #ifdef INDICATOR_WIFI_H
+// 	indicator_wifi_view_init();
+// #endif
 }

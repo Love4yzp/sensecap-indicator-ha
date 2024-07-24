@@ -4163,13 +4163,13 @@
                       {
                         "nid": -573035003,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
                         "nid": -1302183279,
                         "strtype": "CALL FUNCTION/Dont_export_function",
-                        "strval": "True",
+                        "strval": "False",
                         "InheritedType": 2
                       }
                     ],
@@ -4278,7 +4278,7 @@
                       {
                         "nid": -1736604059,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
@@ -5326,7 +5326,7 @@
                       {
                         "nid": -1463532827,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
@@ -5441,7 +5441,7 @@
                       {
                         "nid": 1502031798,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
@@ -6136,7 +6136,7 @@
                           {
                             "nid": 782506020,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "swich_event_cb",
+                            "strval": "switch_event_cb",
                             "InheritedType": 10
                           },
                           {
@@ -6154,7 +6154,7 @@
                   {
                     "disabled": false,
                     "nid": 1425318802,
-                    "strtype": "SWITCH/EventHandler",
+                    "strtype": "_event/EventHandler",
                     "strval": "UNCHECKED(VALUE_CHANGED)",
                     "childs": [
                       {
@@ -6201,7 +6201,7 @@
                           {
                             "nid": -1511378569,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "swich_event_cb",
+                            "strval": "switch_event_cb",
                             "InheritedType": 10
                           },
                           {
@@ -6530,7 +6530,8 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BUTTON"
+            "saved_objtypeKey": "BUTTON",
+            "tree_closed": true
           },
           {
             "guid": "GUID41435164-958837S713205",
@@ -17789,7 +17790,7 @@
                       {
                         "nid": -731062343,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
@@ -19069,13 +19070,13 @@
                           {
                             "nid": -1654776673,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "swich_arc_event_cb",
+                            "strval": "switch_arc_event_cb",
                             "InheritedType": 10
                           },
                           {
                             "nid": 397385008,
                             "strtype": "CALL FUNCTION/Dont_export_function",
-                            "strval": "True",
+                            "strval": "False",
                             "InheritedType": 2
                           }
                         ],
@@ -20433,7 +20434,7 @@
                       {
                         "nid": -1365831968,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
@@ -20548,7 +20549,7 @@
                       {
                         "nid": -338407953,
                         "strtype": "CALL FUNCTION/Function_name",
-                        "strval": "swich_event_cb",
+                        "strval": "switch_event_cb",
                         "InheritedType": 10
                       },
                       {
@@ -20896,7 +20897,7 @@
                   {
                     "nid": -1908898728,
                     "strtype": "OBJECT/Name",
-                    "strval": "switch7 arc 1",
+                    "strval": "switch7 1",
                     "InheritedType": 10
                   },
                   {
@@ -21184,7 +21185,7 @@
                   {
                     "disabled": false,
                     "nid": -1888894633,
-                    "strtype": "SWITCH/EventHandler",
+                    "strtype": "_event/EventHandler",
                     "strval": "CHECKED(VALUE_CHANGED)",
                     "childs": [
                       {
@@ -21231,7 +21232,7 @@
                           {
                             "nid": -997826067,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "swich_event_cb",
+                            "strval": "switch_event_cb",
                             "InheritedType": 10
                           },
                           {
@@ -21249,7 +21250,7 @@
                   {
                     "disabled": false,
                     "nid": 128662626,
-                    "strtype": "SWITCH/EventHandler",
+                    "strtype": "_event/EventHandler",
                     "strval": "UNCHECKED(VALUE_CHANGED)",
                     "childs": [
                       {
@@ -21296,7 +21297,7 @@
                           {
                             "nid": -936451810,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "swich_event_cb",
+                            "strval": "switch_event_cb",
                             "InheritedType": 10
                           },
                           {
@@ -22269,7 +22270,7 @@
                   {
                     "disabled": false,
                     "nid": -891562976,
-                    "strtype": "SLIDER/EventHandler",
+                    "strtype": "_event/EventHandler",
                     "strval": "VALUE_CHANGED",
                     "childs": [
                       {
@@ -22316,13 +22317,13 @@
                           {
                             "nid": -1466746440,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "swich_arc_event_cb",
+                            "strval": "switch_arc_event_cb",
                             "InheritedType": 10
                           },
                           {
                             "nid": 1559439582,
                             "strtype": "CALL FUNCTION/Dont_export_function",
-                            "strval": "True",
+                            "strval": "False",
                             "InheritedType": 2
                           }
                         ],
@@ -35584,7 +35585,7 @@
                   {
                     "disabled": false,
                     "nid": -928331485,
-                    "strtype": "SLIDER/EventHandler",
+                    "strtype": "_event/EventHandler",
                     "strval": "VALUE_CHANGED",
                     "childs": [
                       {
@@ -43060,7 +43061,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 159,
+    "backup_cnt": 161,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",

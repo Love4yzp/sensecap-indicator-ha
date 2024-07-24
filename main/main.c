@@ -53,20 +53,27 @@ void app_main(void) {
 	ESP_ERROR_CHECK(bsp_board_init());
 	lv_port_init();
 
-	esp_event_loop_args_t view_event_task_args = {.queue_size = 10,
-												  .task_name = "view_event_task",
-												  .task_priority = uxTaskPriorityGet(NULL),
-												  .task_stack_size = 10240,
-												  .task_core_id = tskNO_AFFINITY};
+	esp_event_loop_args_t view_event_task_args = {
+		.queue_size = 10,
+		.task_name = "view_event_task",
+		.task_priority = uxTaskPriorityGet(NULL),
+		.task_stack_size = 10240,
+		.task_core_id = tskNO_AFFINITY};
 
-	ESP_ERROR_CHECK(esp_event_loop_create(&view_event_task_args, &view_event_handle));
+	ESP_ERROR_CHECK(
+		esp_event_loop_create(&view_event_task_args, &view_event_handle));
 
 	indicator_view_init(); /* ui_init() */
 
 	indicator_model_init();
 
+	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+					  VIEW_EVENT_WIFI_LIST_REQ, NULL, 0,
+					  portMAX_DELAY); /*send to wifi view*/
+
 #if LOG_MEM_INFO
-	// static char buffer[128];    /* Make sure buffer is enough for `sprintf` */
+	// static char buffer[128];    /* Make sure buffer is enough for `sprintf`
+	// */
 	while(1)
 	{
 		// sprintf(buffer, "   Biggest /     Free /    Total\n"

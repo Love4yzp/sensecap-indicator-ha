@@ -1,3 +1,4 @@
+#include "app/indicator_wifi.h"
 #include "indicator_enabler.h"
 
 int indicator_model_init(void) {
@@ -22,8 +23,15 @@ int indicator_model_init(void) {
 	#endif
 #endif
 
-#ifdef INDICATOR_MQTT_H
+#ifdef INDICATOR_WIFI_H
+	indicator_wifi_model_init();
+	#ifdef INDICATOR_MQTT_H
 	indicator_mqtt_init();
+	// 	#ifdef INDICATOR_HA_H
+	// indicator_ha_init();
+	// 	#endif
+	#endif
+
 #endif
 
 #ifdef INDICATOR_LORAWAN_H
