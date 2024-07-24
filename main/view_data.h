@@ -169,6 +169,7 @@ enum
 	VIEW_EVENT_SENSOR_DATA_HISTORY, // struct view_data_sensor_history_data
 
 	VIEW_EVENT_WIFI_LIST, // view_data_wifi_list_t
+	VIEW_EVENT_WIFI_LIST_START, // chore doing
 	VIEW_EVENT_WIFI_LIST_REQ, // NULL
 	VIEW_EVENT_WIFI_CONNECT, // struct view_data_wifi_config
 

@@ -51,12 +51,31 @@ void ui_screen_wifi_screen_init(void)
     lv_obj_set_style_bg_opa(ui_wifi__st_button_ha_data4, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_color(ui_wifi__st_button_ha_data4, lv_color_hex(0x101418), LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_wifi_st_7 = lv_img_create(ui_wifi__st_button_ha_data4);
-    lv_img_set_src(ui_wifi_st_7, &ui_img_wifi_disconet_png);
-    lv_obj_set_width(ui_wifi_st_7, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_wifi_st_7, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_wifi_st_7, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_wifi_st_7, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
-    lv_obj_clear_flag(ui_wifi_st_7, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    ui_wifi_st_0 = lv_img_create(ui_wifi__st_button_ha_data4);
+    lv_img_set_src(ui_wifi_st_0, &ui_img_wifi_disconet_png);
+    lv_obj_set_width(ui_wifi_st_0, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_wifi_st_0, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_wifi_st_0, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_wifi_st_0, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_wifi_st_0, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
+    ui_wifi_scan_wait = lv_spinner_create(ui_screen_wifi, 1000, 90);
+    lv_obj_set_width(ui_wifi_scan_wait, 50);
+    lv_obj_set_height(ui_wifi_scan_wait, 50);
+    lv_obj_set_align(ui_wifi_scan_wait, LV_ALIGN_CENTER);
+    lv_obj_clear_flag(ui_wifi_scan_wait, LV_OBJ_FLAG_CLICKABLE);      /// Flags
+
+    ui_temp_image1 = lv_img_create(ui_screen_wifi);
+    lv_img_set_src(ui_temp_image1, &ui_img_lock_png);
+    lv_obj_set_width(ui_temp_image1, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_temp_image1, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_temp_image1, 193);
+    lv_obj_set_y(ui_temp_image1, 197);
+    lv_obj_set_align(ui_temp_image1, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_temp_image1, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_temp_image1, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+
+    lv_obj_add_event_cb(ui_back_wifi, ui_event_back_wifi, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_screen_wifi, ui_event_screen_wifi, LV_EVENT_ALL, NULL);
 
 }

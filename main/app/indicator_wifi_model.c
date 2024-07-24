@@ -51,8 +51,7 @@ static void __wifi_st_get(struct view_data_wifi_st* p_st) {
 	xSemaphoreGive(__g_data_mutex);
 }
 
-static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
-								 int32_t event_id, void* event_data) {
+static void __wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
 	switch(event_id)
 	{
 		case WIFI_EVENT_STA_START:
@@ -72,8 +71,7 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
 		case WIFI_EVENT_STA_CONNECTED:
 		{
 			ESP_LOGI(TAG, "wifi event: WIFI_EVENT_STA_CONNECTED");
-			wifi_event_sta_connected_t* event =
-				(wifi_event_sta_connected_t*)event_data;
+			wifi_event_sta_connected_t* event = (wifi_event_sta_connected_t*)event_data;
 			struct view_data_wifi_st st;
 
 			__wifi_st_get(&st);
@@ -84,15 +82,13 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
 			st.is_connecting = false;
 			__wifi_st_set(&st);
 
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-							  VIEW_EVENT_WIFI_ST, &st,
+			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
 							  sizeof(struct view_data_wifi_st), portMAX_DELAY);
 
 			struct view_data_wifi_connet_ret_msg msg;
 			msg.ret = 0;
 			strcpy(msg.msg, "Connection successful");
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-							  VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg),
+			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg),
 							  portMAX_DELAY);
 			break;
 		}
@@ -117,17 +113,15 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
 				st.is_connecting = false;
 				__wifi_st_set(&st);
 
-				esp_event_post_to(
-					view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
-					sizeof(struct view_data_wifi_st), portMAX_DELAY);
+				esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
+								  sizeof(struct view_data_wifi_st), portMAX_DELAY);
 
 				char* p_str = "";
 				struct view_data_wifi_connet_ret_msg msg;
 				msg.ret = 0;
 				strcpy(msg.msg, "Connection failure");
-				esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-								  VIEW_EVENT_WIFI_CONNECT_RET, &msg,
-								  sizeof(msg), portMAX_DELAY);
+				esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg),
+								  portMAX_DELAY);
 			}
 			break;
 		}
@@ -136,8 +130,7 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
 	}
 }
 
-static void __ip_event_handler(void* arg, esp_event_base_t event_base,
-							   int32_t event_id, void* event_data) {
+static void __ip_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
 	if(event_id == IP_EVENT_STA_GOT_IP)
 	{
 		ip_event_got_ip_t* event = (ip_event_got_ip_t*)event_data;
@@ -165,14 +158,12 @@ static int __wifi_scan(wifi_ap_record_t* p_ap_info, uint16_t number) {
 
 	for(int i = 0; (i < number) && (i < ap_count); i++)
 	{
-		ESP_LOGI(TAG, "SSID: %s, RSSI:%d, Channel: %d", p_ap_info[i].ssid,
-				 p_ap_info[i].rssi, p_ap_info[i].primary);
+		ESP_LOGI(TAG, "SSID: %s, RSSI:%d, Channel: %d", p_ap_info[i].ssid, p_ap_info[i].rssi, p_ap_info[i].primary);
 	}
 	return ap_count;
 }
 
-static int __wifi_connect(const char* p_ssid, const char* p_password,
-						  int retry_num) {
+static int __wifi_connect(const char* p_ssid, const char* p_password, int retry_num) {
 	wifi_retry_max = retry_num; // todo
 	s_retry_num = 0;
 
@@ -182,8 +173,7 @@ static int __wifi_connect(const char* p_ssid, const char* p_password,
 	if(p_password)
 	{
 		ESP_LOGI(TAG, "password: %s", p_password);
-		strlcpy((char*)wifi_config.sta.password, p_password,
-				sizeof(wifi_config.sta.password));
+		strlcpy((char*)wifi_config.sta.password, p_password, sizeof(wifi_config.sta.password));
 		wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK; // todo
 	}
 	else
@@ -219,8 +209,8 @@ static void __wifi_cfg_restore(void) {
 	st.is_network = false;
 	__wifi_st_set(&st);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
-					  &st, sizeof(struct view_data_wifi_st), portMAX_DELAY);
+	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
+					  portMAX_DELAY);
 
 	// restore and stop
 	esp_wifi_restore();
@@ -235,8 +225,8 @@ static void __wifi_shutdown(void) {
 	st.is_network = false;
 	__wifi_st_set(&st);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
-					  &st, sizeof(struct view_data_wifi_st), portMAX_DELAY);
+	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
+					  portMAX_DELAY);
 
 	esp_wifi_stop();
 }
@@ -247,13 +237,10 @@ static void __ping_end(esp_ping_handle_t hdl, void* args) {
 	uint32_t received = 0;
 	uint32_t total_time_ms = 0;
 	uint32_t loss = 0;
-	esp_ping_get_profile(hdl, ESP_PING_PROF_REQUEST, &transmitted,
-						 sizeof(transmitted));
+	esp_ping_get_profile(hdl, ESP_PING_PROF_REQUEST, &transmitted, sizeof(transmitted));
 	esp_ping_get_profile(hdl, ESP_PING_PROF_REPLY, &received, sizeof(received));
-	esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr,
-						 sizeof(target_addr));
-	esp_ping_get_profile(hdl, ESP_PING_PROF_DURATION, &total_time_ms,
-						 sizeof(total_time_ms));
+	esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
+	esp_ping_get_profile(hdl, ESP_PING_PROF_DURATION, &total_time_ms, sizeof(total_time_ms));
 
 	if(transmitted > 0)
 	{
@@ -266,16 +253,14 @@ static void __ping_end(esp_ping_handle_t hdl, void* args) {
 
 	if(IP_IS_V4(&target_addr))
 	{
-		printf("\n--- %s ping statistics ---\n",
-			   inet_ntoa(*ip_2_ip4(&target_addr)));
+		printf("\n--- %s ping statistics ---\n", inet_ntoa(*ip_2_ip4(&target_addr)));
 	}
 	else
 	{
-		printf("\n--- %s ping statistics ---\n",
-			   inet6_ntoa(*ip_2_ip6(&target_addr)));
+		printf("\n--- %s ping statistics ---\n", inet6_ntoa(*ip_2_ip6(&target_addr)));
 	}
-	printf("%d packets transmitted, %d received, %d%% packet loss, time %dms\n",
-		   transmitted, received, loss, total_time_ms);
+	printf("%d packets transmitted, %d received, %d%% packet loss, time %dms\n", transmitted, received, loss,
+		   total_time_ms);
 
 	esp_ping_delete_session(hdl);
 
@@ -292,8 +277,8 @@ static void __ping_end(esp_ping_handle_t hdl, void* args) {
 		st.is_network = false;
 		__wifi_st_set(&st);
 	}
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
-					  &st, sizeof(struct view_data_wifi_st), portMAX_DELAY);
+	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
+					  portMAX_DELAY);
 	__g_ping_done = true;
 }
 
@@ -305,10 +290,8 @@ static void __ping_start(void) {
 
 	config.target_addr = target_addr;
 
-	esp_ping_callbacks_t cbs = {.cb_args = NULL,
-								.on_ping_success = NULL,
-								.on_ping_timeout = NULL,
-								.on_ping_end = __ping_end};
+	esp_ping_callbacks_t cbs = {
+		.cb_args = NULL, .on_ping_success = NULL, .on_ping_timeout = NULL, .on_ping_end = __ping_end};
 	esp_ping_handle_t ping;
 	esp_ping_new_session(&config, &cbs, &ping);
 	__g_ping_done = false;
@@ -337,9 +320,7 @@ static void __indicator_wifi_task(void* p_arg) {
 					if(cnt > 60)
 					{
 						cnt = 0;
-						ESP_LOGI(
-							TAG,
-							"Network normal last time, retry check network...");
+						ESP_LOGI(TAG, "Network normal last time, retry check network...");
 						__ping_start();
 					}
 				}
@@ -371,8 +352,7 @@ static void __indicator_wifi_task(void* p_arg) {
 	}
 }
 
-static void __view_event_handler(void* handler_args, esp_event_base_t base,
-								 int32_t id, void* event_data) {
+static void __view_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
 	switch(id)
 	{
 		case VIEW_EVENT_WIFI_LIST_REQ:
@@ -394,8 +374,7 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base,
 			list.is_connect = st.is_connected;
 			if(st.is_connected)
 			{
-				strlcpy((char*)list.connect.ssid, (char*)st.ssid,
-						sizeof(list.connect.ssid));
+				strlcpy((char*)list.connect.ssid, (char*)st.ssid, sizeof(list.connect.ssid));
 				list.connect.auth_mode = false;
 				list.connect.rssi = st.rssi;
 			}
@@ -432,17 +411,15 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base,
 				}
 			}
 			list.cnt = list_cnt;
-			esp_event_post_to(
-				view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, &list,
-				sizeof(struct view_data_wifi_list), portMAX_DELAY); /*send to wifi view*/
+			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, &list,
+							  sizeof(struct view_data_wifi_list), portMAX_DELAY); /*send to wifi view*/
 
 			break;
 		}
 		case VIEW_EVENT_WIFI_CONNECT:
 		{
 			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_CONNECT");
-			struct view_data_wifi_config* p_cfg =
-				(struct view_data_wifi_config*)event_data;
+			struct view_data_wifi_config* p_cfg = (struct view_data_wifi_config*)event_data;
 
 			if(p_cfg->have_password)
 			{
@@ -484,8 +461,7 @@ int indicator_wifi_model_init(void) {
 
 	__wifi_model_init();
 
-	xTaskCreate(&__indicator_wifi_task, "__indicator_wifi_task", 1024 * 5, NULL,
-				10, NULL);
+	xTaskCreate(&__indicator_wifi_task, "__indicator_wifi_task", 1024 * 5, NULL, 10, NULL);
 
 	ESP_ERROR_CHECK(esp_netif_init());
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
@@ -498,29 +474,23 @@ int indicator_wifi_model_init(void) {
 	esp_event_handler_instance_t instance_any_id;
 	esp_event_handler_instance_t instance_got_ip;
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register(
-		WIFI_EVENT, ESP_EVENT_ANY_ID, &__wifi_event_handler, 0,
-		&instance_any_id));
+	ESP_ERROR_CHECK(
+		esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &__wifi_event_handler, 0, &instance_any_id));
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register(
-		IP_EVENT, IP_EVENT_STA_GOT_IP, &__ip_event_handler, 0,
-		&instance_got_ip));
+	ESP_ERROR_CHECK(
+		esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &__ip_event_handler, 0, &instance_got_ip));
 
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ,
-		__view_event_handler, NULL, NULL));
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ, __view_event_handler, NULL, NULL));
 
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT,
-		__view_event_handler, NULL, NULL));
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT, __view_event_handler, NULL, NULL));
 
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE,
-		__view_event_handler, NULL, NULL));
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE, __view_event_handler, NULL, NULL));
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SHUTDOWN,
-		__view_event_handler, NULL, NULL));
+	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SHUTDOWN,
+															 __view_event_handler, NULL, NULL));
 
 	wifi_config_t wifi_cfg;
 	esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
@@ -538,8 +508,7 @@ int indicator_wifi_model_init(void) {
 		uint8_t screen = SCREEN_WIFI_CONFIG;
 		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 		ESP_ERROR_CHECK(esp_wifi_start());
-		esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-						  VIEW_EVENT_SCREEN_START, &screen, sizeof(screen),
+		esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_START, &screen, sizeof(screen),
 						  portMAX_DELAY);
 	}
 

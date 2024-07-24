@@ -46,7 +46,7 @@ extern lv_obj_t * ui_time_ha_data1;
 extern lv_obj_t * ui_screen_home_data_label2;
 void ui_event_wifi__st_button_ha_data1(lv_event_t * e);
 extern lv_obj_t * ui_wifi__st_button_ha_data1;
-extern lv_obj_t * ui_wifi_st_4;
+extern lv_obj_t * ui_wifi_st_1;
 // SCREEN: ui_screen_ha_data
 void ui_screen_ha_data_screen_init(void);
 void ui_event_screen_ha_data(lv_event_t * e);
@@ -107,7 +107,7 @@ extern lv_obj_t * ui_time_ha_data2;
 extern lv_obj_t * ui_screen_home_data_label3;
 void ui_event_wifi__st_button_ha_data2(lv_event_t * e);
 extern lv_obj_t * ui_wifi__st_button_ha_data2;
-extern lv_obj_t * ui_wifi_st_5;
+extern lv_obj_t * ui_wifi_st_3;
 // SCREEN: ui_screen_setting
 void ui_screen_setting_screen_init(void);
 void ui_event_screen_setting(lv_event_t * e);
@@ -116,7 +116,7 @@ extern lv_obj_t * ui_panel_top_4;
 extern lv_obj_t * ui_time_ha_data3;
 void ui_event_wifi__st_button_ha_setting(lv_event_t * e);
 extern lv_obj_t * ui_wifi__st_button_ha_setting;
-extern lv_obj_t * ui_wifi_st_6;
+extern lv_obj_t * ui_wifi_st_4;
 extern lv_obj_t * ui_Container_Setting;
 extern lv_obj_t * ui_setting_title1;
 extern lv_obj_t * ui_setting_icon1;
@@ -137,12 +137,16 @@ extern lv_obj_t * ui_setting_display2;
 extern lv_obj_t * ui_Label1;
 // SCREEN: ui_screen_wifi
 void ui_screen_wifi_screen_init(void);
+void ui_event_screen_wifi(lv_event_t * e);
 extern lv_obj_t * ui_screen_wifi;
 extern lv_obj_t * ui_panel_top_5;
+void ui_event_back_wifi(lv_event_t * e);
 extern lv_obj_t * ui_back_wifi;
 extern lv_obj_t * ui_screen_home_data_label4;
 extern lv_obj_t * ui_wifi__st_button_ha_data4;
-extern lv_obj_t * ui_wifi_st_7;
+extern lv_obj_t * ui_wifi_st_0;
+extern lv_obj_t * ui_wifi_scan_wait;
+extern lv_obj_t * ui_temp_image1;
 // SCREEN: ui_screen_display
 void ui_screen_display_screen_init(void);
 extern lv_obj_t * ui_screen_display;
@@ -175,7 +179,7 @@ extern lv_obj_t * ui_back_wifi1;
 extern lv_obj_t * ui_screen_home_data_label5;
 void ui_event_wifi__st_button_ha_data3(lv_event_t * e);
 extern lv_obj_t * ui_wifi__st_button_ha_data3;
-extern lv_obj_t * ui_wifi_st_1;
+extern lv_obj_t * ui_wifi_st_01;
 extern lv_obj_t * ui_container_Inputer;
 extern lv_obj_t * ui_Label2;
 extern lv_obj_t * ui_Label3;
@@ -203,6 +207,7 @@ LV_IMG_DECLARE(ui_img_setting_png);    // assets/setting.png
 LV_IMG_DECLARE(ui_img_wifi_setting_png);    // assets/wifi_setting.png
 LV_IMG_DECLARE(ui_img_display_png);    // assets/display.png
 LV_IMG_DECLARE(ui_img_back_png);    // assets/back.png
+LV_IMG_DECLARE(ui_img_lock_png);    // assets/lock.png
 LV_IMG_DECLARE(ui_img_high_light_png);    // assets/high_light.png
 LV_IMG_DECLARE(ui_img_low_light_png);    // assets/low_light.png
 LV_IMG_DECLARE(ui_img_co2_png);    // assets/co2.png

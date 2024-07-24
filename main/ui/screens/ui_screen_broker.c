@@ -51,13 +51,13 @@ void ui_screen_broker_screen_init(void)
     lv_obj_set_style_bg_opa(ui_wifi__st_button_ha_data3, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_grad_color(ui_wifi__st_button_ha_data3, lv_color_hex(0x101418), LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_wifi_st_1 = lv_img_create(ui_wifi__st_button_ha_data3);
-    lv_img_set_src(ui_wifi_st_1, &ui_img_wifi_disconet_png);
-    lv_obj_set_width(ui_wifi_st_1, LV_SIZE_CONTENT);   /// 1
-    lv_obj_set_height(ui_wifi_st_1, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_align(ui_wifi_st_1, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_wifi_st_1, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
-    lv_obj_clear_flag(ui_wifi_st_1, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    ui_wifi_st_01 = lv_img_create(ui_wifi__st_button_ha_data3);
+    lv_img_set_src(ui_wifi_st_01, &ui_img_wifi_disconet_png);
+    lv_obj_set_width(ui_wifi_st_01, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_wifi_st_01, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_align(ui_wifi_st_01, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_wifi_st_01, LV_OBJ_FLAG_ADV_HITTEST);     /// Flags
+    lv_obj_clear_flag(ui_wifi_st_01, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
 
     ui_container_Inputer = lv_obj_create(ui_screen_broker);
     lv_obj_remove_style_all(ui_container_Inputer);

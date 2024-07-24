@@ -12,6 +12,8 @@ extern "C" {
 
 void switch_event_cb(lv_event_t * e);
 void switch_arc_event_cb(lv_event_t * e);
+void ui_event_wifi_config(lv_event_t * e);
+void ui_event_wifi_start(lv_event_t * e);
 void brighness_cfg_event_cb(lv_event_t * e);
 void display_cfg_apply_event_cb(lv_event_t * e);
 

@@ -40,7 +40,7 @@ lv_obj_t * ui_time_ha_data1;
 lv_obj_t * ui_screen_home_data_label2;
 void ui_event_wifi__st_button_ha_data1(lv_event_t * e);
 lv_obj_t * ui_wifi__st_button_ha_data1;
-lv_obj_t * ui_wifi_st_4;
+lv_obj_t * ui_wifi_st_1;
 
 
 // SCREEN: ui_screen_ha_data
@@ -105,7 +105,7 @@ lv_obj_t * ui_time_ha_data2;
 lv_obj_t * ui_screen_home_data_label3;
 void ui_event_wifi__st_button_ha_data2(lv_event_t * e);
 lv_obj_t * ui_wifi__st_button_ha_data2;
-lv_obj_t * ui_wifi_st_5;
+lv_obj_t * ui_wifi_st_3;
 
 
 // SCREEN: ui_screen_setting
@@ -116,7 +116,7 @@ lv_obj_t * ui_panel_top_4;
 lv_obj_t * ui_time_ha_data3;
 void ui_event_wifi__st_button_ha_setting(lv_event_t * e);
 lv_obj_t * ui_wifi__st_button_ha_setting;
-lv_obj_t * ui_wifi_st_6;
+lv_obj_t * ui_wifi_st_4;
 lv_obj_t * ui_Container_Setting;
 lv_obj_t * ui_setting_title1;
 lv_obj_t * ui_setting_icon1;
@@ -139,12 +139,16 @@ lv_obj_t * ui_Label1;
 
 // SCREEN: ui_screen_wifi
 void ui_screen_wifi_screen_init(void);
+void ui_event_screen_wifi(lv_event_t * e);
 lv_obj_t * ui_screen_wifi;
 lv_obj_t * ui_panel_top_5;
+void ui_event_back_wifi(lv_event_t * e);
 lv_obj_t * ui_back_wifi;
 lv_obj_t * ui_screen_home_data_label4;
 lv_obj_t * ui_wifi__st_button_ha_data4;
-lv_obj_t * ui_wifi_st_7;
+lv_obj_t * ui_wifi_st_0;
+lv_obj_t * ui_wifi_scan_wait;
+lv_obj_t * ui_temp_image1;
 
 
 // SCREEN: ui_screen_display
@@ -181,7 +185,7 @@ lv_obj_t * ui_back_wifi1;
 lv_obj_t * ui_screen_home_data_label5;
 void ui_event_wifi__st_button_ha_data3(lv_event_t * e);
 lv_obj_t * ui_wifi__st_button_ha_data3;
-lv_obj_t * ui_wifi_st_1;
+lv_obj_t * ui_wifi_st_01;
 lv_obj_t * ui_container_Inputer;
 lv_obj_t * ui_Label2;
 lv_obj_t * ui_Label3;
@@ -409,6 +413,25 @@ void ui_event_setting_display2(lv_event_t * e)
     lv_obj_t * target = lv_event_get_target(e);
     if(event_code == LV_EVENT_RELEASED) {
         _ui_screen_change(&ui_screen_broker, LV_SCR_LOAD_ANIM_MOVE_TOP, 200, 0, &ui_screen_broker_screen_init);
+    }
+}
+void ui_event_screen_wifi(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    lv_obj_t * target = lv_event_get_target(e);
+    if(event_code == LV_EVENT_SCREEN_LOADED) {
+        ui_event_wifi_config(e);
+    }
+    if(event_code == LV_EVENT_SCREEN_LOAD_START) {
+        ui_event_wifi_start(e);
+    }
+}
+void ui_event_back_wifi(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    lv_obj_t * target = lv_event_get_target(e);
+    if(event_code == LV_EVENT_CLICKED) {
+        _ui_screen_change(&ui_screen_setting, LV_SCR_LOAD_ANIM_OVER_TOP, 200, 0, &ui_screen_setting_screen_init);
     }
 }
 void ui_event_sleep_mode_time_cfg(lv_event_t * e)

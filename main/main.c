@@ -67,9 +67,9 @@ void app_main(void) {
 
 	indicator_model_init();
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-					  VIEW_EVENT_WIFI_LIST_REQ, NULL, 0,
-					  portMAX_DELAY); /*send to wifi view*/
+	// esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+	// 				  VIEW_EVENT_WIFI_LIST_REQ, NULL, 0,
+	// 				  portMAX_DELAY); /*send to wifi view*/
 
 #if LOG_MEM_INFO
 	// static char buffer[128];    /* Make sure buffer is enough for `sprintf`

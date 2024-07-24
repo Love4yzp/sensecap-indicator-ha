@@ -22,6 +22,7 @@ SET(SOURCES screens/ui_screen_ha_mix.c
     images/ui_img_wifi_setting_png.c
     images/ui_img_display_png.c
     images/ui_img_back_png.c
+    images/ui_img_lock_png.c
     images/ui_img_high_light_png.c
     images/ui_img_low_light_png.c
     images/ui_img_co2_png.c
