@@ -16,4 +16,8 @@ int indicator_view_init(void) {
 #ifdef INDICATOR_WIFI_H
 	indicator_wifi_view_init();
 #endif
+
+#ifdef INDICATOR_HA_H
+	indicator_ha_view_init();
+#endif
 }

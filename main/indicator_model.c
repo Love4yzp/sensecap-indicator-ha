@@ -32,7 +32,7 @@ int indicator_model_init(void) {
 	#ifdef INDICATOR_MQTT_H
 	indicator_mqtt_init();
 		#ifdef INDICATOR_HA_H
-	indicator_ha_init();
+	indicator_ha_model_init();
 		#endif
 	#endif
 

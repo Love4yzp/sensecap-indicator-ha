@@ -112,7 +112,7 @@ void view_sensor_init() {
 	sensorPanel[SHT41_SENSOR_HUMIDITY].ui_lbl_size = 2;
 	sensorPanel[SHT41_SENSOR_HUMIDITY].ui_lbl = (lv_obj_t*)malloc(sizeof(lv_obj_t*) * 1);
 	sensorPanel[SHT41_SENSOR_HUMIDITY].ui_lbl[0] = ui_sensor_data_humi_1;
-	sensorPanel[SHT41_SENSOR_HUMIDITY].ui_lbl[1] = ui_sensor_data_humi_1;
+	sensorPanel[SHT41_SENSOR_HUMIDITY].ui_lbl[1] = ui_sensor_data_humi_2;
 
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
 		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA,

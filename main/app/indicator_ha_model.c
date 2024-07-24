@@ -18,10 +18,11 @@
 #include "home_assistant_config.h"
 #include "indicator_mqtt.h"
 #include "indicator_cmd.h"
+#include "ui.h"
 
 #define HA_CFG_STORAGE "ha-cfg"
 
-static const char* TAG = "HA";
+static const char* TAG = "ha-model";
 
 typedef struct ha_sensor_entity
 {
@@ -186,25 +187,25 @@ static int mqtt_msg_handler(const char* p_topic, int topic_len, const char* p_da
 	{
 		return -1;
 	}
-	struct view_data_ha_sensor_data sensor_data;
+	// struct view_data_ha_sensor_data sensor_data;
 	struct view_data_ha_switch_data switch_data;
 
-	memset(&sensor_data, 0, sizeof(sensor_data));
+	// memset(&sensor_data, 0, sizeof(sensor_data));
 	memset(&switch_data, 0, sizeof(switch_data));
 
-	for(int i = 0; i < CONFIG_HA_SENSOR_ENTITY_NUM; i++)
-	{
-		cjson_item = cJSON_GetObjectItem(root, ha_sensor_entites[i].key);
-		if(cjson_item != NULL && cjson_item->valuestring != NULL &&
-		   0 == strncmp(p_topic, ha_sensor_entites->topic, topic_len))
-		{
-			sensor_data.index = i;
-			strncpy(sensor_data.value, cjson_item->valuestring, sizeof(sensor_data.value) - 1);
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SENSOR, &sensor_data,
-							  sizeof(sensor_data), portMAX_DELAY);
-			// return 0;
-		}
-	}
+	// for(int i = 0; i < CONFIG_HA_SENSOR_ENTITY_NUM; i++)
+	// {
+	// 	cjson_item = cJSON_GetObjectItem(root, ha_sensor_entites[i].key);
+	// 	if(cjson_item != NULL && cjson_item->valuestring != NULL &&
+	// 	   0 == strncmp(p_topic, ha_sensor_entites->topic, topic_len))
+	// 	{
+	// 		sensor_data.index = i;
+	// 		strncpy(sensor_data.value, cjson_item->valuestring, sizeof(sensor_data.value) - 1);
+	// 		esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SENSOR, &sensor_data,
+	// 						  sizeof(sensor_data), portMAX_DELAY);
+	// 		// return 0;
+	// 	}
+	// }
 
 	for(int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++)
 	{
@@ -244,16 +245,6 @@ static void mqtt_event_handler(void* handler_args, esp_event_base_t base, int32_
 			{
 				msg_id = esp_mqtt_client_subscribe(client, ha_switch_entites[i].topic_set, ha_switch_entites[i].qos);
 				ESP_LOGI(TAG, "subscribe:%s, msg_id=%d", ha_switch_entites[i].topic_set, msg_id);
-			}
-
-			//  restore switch state for UI and HA.
-			struct view_data_ha_switch_data switch_data;
-			for(int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++)
-			{
-				switch_data.index = i;
-				switch_data.value = switch_state[i];
-				esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_SET, &switch_data,
-								  sizeof(switch_data), portMAX_DELAY);
 			}
 
 			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_MQTT_CONNECTED, NULL, 0, portMAX_DELAY);
@@ -355,7 +346,7 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 			}
 			break;
 		}
-		case VIEW_EVENT_HA_SWITCH_ST:
+		case VIEW_EVENT_HA_SWITCH_ST: /* get the data from user */
 		{
 			if(instance_ptr->mqtt_connected_flag == false)
 			{
@@ -438,6 +429,7 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 			ha_ctrl_cfg_save(); // save switch state to flash
 			break;
 		}
+
 		case VIEW_EVENT_WIFI_ST: /*被动触发*/
 		{
 			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_ST try to invoke a mqtt client");
@@ -550,10 +542,10 @@ void mqtt_ha_init(void) {
 	/* instance_ptr == &mqtt_ha_instance; */
 	__mqtt_ha_init(&mqtt_ha_instance);
 
-	/* 一次主动触发 */
-	// ESP_ERROR_CHECK(esp_event_handler_instance_register_with(cmd_cfg_event_handle, CMD_CFG_EVENT_BASE, HA_CFG_SET,
-	// 														 __cfg_event_handler, NULL,
-	// 														 NULL)); /* 重启服务(会进行保存)，*/
+	/* 恢复之前得状态 */
+	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(cmd_cfg_event_handle, CMD_CFG_EVENT_BASE, HA_CFG_SET,
+															 __cfg_event_handler, NULL,
+															 NULL)); /* 重启服务(会进行保存)，*/
 }
 
 /**
@@ -605,10 +597,20 @@ void ha_cfg_set(ha_cfg_interface* cfg) {
 	}
 }
 
-int indicator_ha_init(void) {
+int indicator_ha_model_init(void) {
 	ha_ctrl_cfg_restore(); /* restore the widets status last time */
 	ha_entites_init(); /* define the entities, the ha data model */
 	mqtt_ha_init(); /* start register mqtt service */
+
+	//  restore switch state for UI and HA.
+	struct view_data_ha_switch_data switch_data;
+	for(int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++)
+	{
+		switch_data.index = i;
+		switch_data.value = switch_state[i];
+		esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_SET, &switch_data,
+						  sizeof(switch_data), portMAX_DELAY);
+	}
 
 	/* monitor network status*/
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,

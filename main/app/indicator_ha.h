@@ -34,7 +34,8 @@ typedef struct
 	char password[64];
 } ha_cfg_interface;
 
-int indicator_ha_init(void);
+int indicator_ha_model_init(void);
+int indicator_ha_view_init(void);
 void ha_cfg_get(ha_cfg_interface* cfg);
 void ha_cfg_set(ha_cfg_interface* cfg);
 
