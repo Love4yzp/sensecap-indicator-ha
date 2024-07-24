@@ -17,8 +17,8 @@
 
 #include "indicator_mqtt.h"
 
-// #include "indicator_lorawan.h"
-// #include "indicator_cmd.h"
-// #include "indicator_terminal.h"
+#include "indicator_cmd.h"
+
+#include "indicator_ha.h"
 
 #endif /*INDICATOR_INCLUDES_H*/

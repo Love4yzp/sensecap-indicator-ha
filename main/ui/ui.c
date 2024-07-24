@@ -31,10 +31,10 @@ void ui_event_switch2(lv_event_t * e);
 lv_obj_t * ui_switch2;
 lv_obj_t * ui_switch2_logo1;
 lv_obj_t * ui_switch2_label1;
-lv_obj_t * ui_switch3;
+lv_obj_t * ui_switch_btn3;
 lv_obj_t * ui_switch3_label1;
-void ui_event_switch3_switch1(lv_event_t * e);
-lv_obj_t * ui_switch3_switch1;
+void ui_event_switch3(lv_event_t * e);
+lv_obj_t * ui_switch3;
 lv_obj_t * ui_panel_top_2;
 lv_obj_t * ui_time_ha_data1;
 lv_obj_t * ui_screen_home_data_label2;
@@ -255,7 +255,7 @@ void ui_event_switch2(lv_event_t * e)
         switch_event_cb(e);
     }
 }
-void ui_event_switch3_switch1(lv_event_t * e)
+void ui_event_switch3(lv_event_t * e)
 {
     lv_event_code_t event_code = lv_event_get_code(e);
     lv_obj_t * target = lv_event_get_target(e);

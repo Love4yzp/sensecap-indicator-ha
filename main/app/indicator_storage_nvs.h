@@ -3,6 +3,7 @@
 
 #include "view_data.h"
 #include <esp_err.h>
+#include <nvs.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -483,7 +483,7 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 		}
 		case VIEW_EVENT_WIFI_ST: /* receive the trigger by esp wifi */
 		{
-			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_ST");
+			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_ST | update wifi signal icon");
 			struct view_data_wifi_st* p_st = (struct view_data_wifi_st*)event_data;
 
 			uint8_t* p_src = NULL;

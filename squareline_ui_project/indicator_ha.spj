@@ -5790,7 +5790,7 @@
                   {
                     "nid": -1865922558,
                     "strtype": "OBJECT/Name",
-                    "strval": "switch3 switch1",
+                    "strval": "switch3",
                     "InheritedType": 10
                   },
                   {
@@ -5844,7 +5844,6 @@
                   },
                   {
                     "nid": -1639175162,
-                    "flags": 1048576,
                     "strtype": "OBJECT/Flags",
                     "InheritedType": 1
                   },
@@ -6226,7 +6225,7 @@
               {
                 "nid": 2076417421,
                 "strtype": "OBJECT/Name",
-                "strval": "switch3",
+                "strval": "switch btn3",
                 "InheritedType": 10
               },
               {
@@ -6280,7 +6279,6 @@
               },
               {
                 "nid": 1300129007,
-                "flags": 1048576,
                 "strtype": "OBJECT/Flags",
                 "InheritedType": 1
               },
@@ -6293,7 +6291,7 @@
               {
                 "nid": -668111303,
                 "strtype": "OBJECT/Clickable",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
@@ -6305,13 +6303,13 @@
               {
                 "nid": 931874191,
                 "strtype": "OBJECT/Press_lock",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
                 "nid": 1597150943,
                 "strtype": "OBJECT/Click_focusable",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
@@ -6371,25 +6369,25 @@
               {
                 "nid": -385212678,
                 "strtype": "OBJECT/Scroll_elastic",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
                 "nid": 1772062470,
                 "strtype": "OBJECT/Scroll_momentum",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
                 "nid": -613047499,
                 "strtype": "OBJECT/Scroll_on_focus",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
                 "nid": -2094305633,
                 "strtype": "OBJECT/Scroll_chain",
-                "strval": "True",
+                "strval": "False",
                 "InheritedType": 2
               },
               {
@@ -6530,8 +6528,7 @@
                 "InheritedType": 11
               }
             ],
-            "saved_objtypeKey": "BUTTON",
-            "tree_closed": true
+            "saved_objtypeKey": "BUTTON"
           },
           {
             "guid": "GUID41435164-958837S713205",
@@ -33414,7 +33411,7 @@
           {
             "disabled": false,
             "nid": 201161165,
-            "strtype": "SCREEN/EventHandler",
+            "strtype": "_event/EventHandler",
             "strval": "SCREEN_LOADED",
             "childs": [
               {
@@ -33479,7 +33476,7 @@
           {
             "disabled": false,
             "nid": -1763347557,
-            "strtype": "SCREEN/EventHandler",
+            "strtype": "_event/EventHandler",
             "strval": "SCREEN_LOAD_START",
             "childs": [
               {
@@ -43703,7 +43700,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 178,
+    "backup_cnt": 179,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",

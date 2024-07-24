@@ -23,20 +23,24 @@ int indicator_model_init(void) {
 	#endif
 #endif
 
+#ifdef INDICATOR_CMD_H
+	indicator_cmd_init();
+#endif
+
 #ifdef INDICATOR_WIFI_H
 	indicator_wifi_model_init();
 	#ifdef INDICATOR_MQTT_H
 	indicator_mqtt_init();
-	// 	#ifdef INDICATOR_HA_H
-	// indicator_ha_init();
-	// 	#endif
+		#ifdef INDICATOR_HA_H
+	indicator_ha_init();
+		#endif
 	#endif
 
 #endif
 
 #ifdef INDICATOR_LORAWAN_H
 	indicator_lorawan_init();
-	#ifdef indicator_CMD_H
+	#ifdef INDICATOR_CMD_H
 	indicator_cmd_init();
 	#endif
 #endif
