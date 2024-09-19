@@ -20,12 +20,6 @@
 #include "freertos/semphr.h"
 #include "freertos/task.h"
 
-#include "lwip/dns.h"
-#include "lwip/err.h"
-#include "lwip/netdb.h"
-#include "lwip/sockets.h"
-#include "lwip/sys.h"
-
 #include "esp_wifi_types.h"
 #include "mqtt_client.h"
 #include <esp_mac.h>

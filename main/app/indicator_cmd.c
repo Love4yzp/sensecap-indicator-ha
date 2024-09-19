@@ -121,7 +121,7 @@ static int mqtt_config_set(int argc, char **argv)
     }
     // Save the updated configuration to NVS, then alert, don't need to transport configuration.
     ha_cfg_set(&ha_cfg);
-    esp_event_post_to(cmd_cfg_event_handle, CMD_CFG_EVENT_BASE, HA_CFG_SET, NULL, NULL, portMAX_DELAY);
+    esp_event_post_to(ha_cfg_event_handle, HA_CFG_EVENT_BASE, HA_CFG_SET, NULL, NULL, portMAX_DELAY);
 
     return 0;
 }

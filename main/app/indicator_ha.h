@@ -20,9 +20,13 @@
 extern "C" {
 #endif
 
+ESP_EVENT_DECLARE_BASE(HA_CFG_EVENT_BASE);
+extern esp_event_loop_handle_t ha_cfg_event_handle;
+
 enum HA_CFG_EVENT
 {
 	HA_CFG_SET,
+	HA_CFG_BROKER_CHANGED,
 	HA_CFG_EVENT_ALL,
 };
 

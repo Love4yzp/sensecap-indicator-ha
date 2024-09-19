@@ -50,38 +50,44 @@ static bool is_valid_ipv4(const char* ip_address) {
 
 	return is_valid;
 }
-static bool extract_ip_from_url(const char *url, char *ip, size_t ip_size) {
-    regex_t regex;
-    regmatch_t matches[2];
-    const char *pattern = "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)";
-    
-    if (regcomp(&regex, pattern, REG_EXTENDED) != 0) {
-        ESP_LOGE(TAG, "Failed to compile regex");
-        return false;
-    }
-    
-    if (regexec(&regex, url, 2, matches, 0) == 0) {
-        size_t len = matches[1].rm_eo - matches[1].rm_so;
-        if (len < ip_size) {
-            strncpy(ip, url + matches[1].rm_so, len);
-            ip[len] = '\0';
-            regfree(&regex);
-            return true;
-        }
-    }
-    
-    regfree(&regex);
-    return false;
+static bool extract_ip_from_url(const char* url, char* ip, size_t ip_size) {
+	regex_t regex;
+	regmatch_t matches[2];
+	const char* pattern = "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)";
+
+	if(regcomp(&regex, pattern, REG_EXTENDED) != 0)
+	{
+		ESP_LOGE(TAG, "Failed to compile regex");
+		return false;
+	}
+
+	if(regexec(&regex, url, 2, matches, 0) == 0)
+	{
+		size_t len = matches[1].rm_eo - matches[1].rm_so;
+		if(len < ip_size)
+		{
+			strncpy(ip, url + matches[1].rm_so, len);
+			ip[len] = '\0';
+			regfree(&regex);
+			return true;
+		}
+	}
+
+	regfree(&regex);
+	return false;
 }
 
-static void update_ip_textfield(const char *broker_url) {
-    char ip[16];
-    if (extract_ip_from_url(broker_url, ip, sizeof(ip))) {
-        lv_textarea_set_text(ui_textarea_ip_0, ip);
-    } else {
-        ESP_LOGE(TAG, "Failed to extract IP from URL: %s", broker_url);
-        lv_textarea_set_text(ui_textarea_ip_0, "");
-    }
+static void update_ip_textfield(const char* broker_url) {
+	char ip[16];
+	if(extract_ip_from_url(broker_url, ip, sizeof(ip)))
+	{
+		lv_textarea_set_text(ui_textarea_ip_0, ip);
+	}
+	else
+	{
+		ESP_LOGE(TAG, "Failed to extract IP from URL: %s", broker_url);
+		lv_textarea_set_text(ui_textarea_ip_0, "");
+	}
 }
 
 void assemble_broker_url(const char* ip_address, char* broker_url, size_t broker_url_size) {
@@ -114,55 +120,119 @@ static void show_message_box(const char* message, lv_color_t color) {
 	lv_obj_center(mbox);
 }
 
+static void handle_mqtt_addr_change(const char* new_broker_ip) {
+    if (!is_valid_ipv4(new_broker_ip)) {
+        ESP_LOGE(TAG, "Invalid IPv4 address: %s", new_broker_ip);
+        show_message_box("Invalid IPv4 address", lv_palette_main(LV_PALETTE_RED));
+        return;
+    }
+
+    ha_cfg_interface ha_cfg;
+    ha_cfg_get(&ha_cfg);
+
+    char broker_url[MAX_BROKER_URL_LEN];
+    assemble_broker_url(new_broker_ip, broker_url, sizeof(broker_url));
+
+    if (strlen(broker_url) >= sizeof(ha_cfg.broker_url)) {
+        ESP_LOGE(TAG, "Broker URL too long");
+        show_message_box("Broker URL too long", lv_palette_main(LV_PALETTE_RED));
+        return;
+    }
+
+    strlcpy(ha_cfg.broker_url, broker_url, sizeof(ha_cfg.broker_url));
+
+    if (ha_cfg_set(&ha_cfg) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to save broker IP");
+        show_message_box("Failed to save broker IP", lv_palette_main(LV_PALETTE_RED));
+        return;
+    }
+
+    ESP_LOGI(TAG, "Valid broker URL saved: %s", ha_cfg.broker_url);
+    esp_event_post_to(ha_cfg_event_handle, HA_CFG_EVENT_BASE, HA_CFG_BROKER_CHANGED, ha_cfg.broker_url, sizeof(ha_cfg.broker_url), portMAX_DELAY);
+    // esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_ADDR_DISPLAY, ha_cfg.broker_url, sizeof(ha_cfg.broker_url), portMAX_DELAY);
+    show_message_box("Broker IP updated successfully", lv_palette_main(LV_PALETTE_GREEN));
+}
+
+static void update_switch_ui(int index, int value) {
+    lv_obj_t* target = NULL;
+    switch (index) {
+        case 0: target = ui_switch1; break;
+        case 1: target = ui_switch2; break;
+        case 2: target = ui_switch3; break;
+        case 3: target = ui_switch4; break;
+        case 4: target = ui_switch5; break;
+        case 5: target = ui_switch6; break;
+        case 6: target = ui_switch5_arc1; break;
+        case 7: target = ui_switch8_slider1; break;
+        default: ESP_LOGW(TAG, "Invalid switch index: %d", index); return;
+    }
+
+    if (index < 6) {
+        if (value) {
+            lv_obj_add_state(target, LV_STATE_CHECKED);
+        } else {
+            lv_obj_clear_state(target, LV_STATE_CHECKED);
+        }
+    } else if (index == 6) {
+        char buf[_UI_TEMPORARY_STRING_BUFFER_SIZE];
+        lv_snprintf(buf, sizeof(buf), "%d °C", value);
+        lv_label_set_text(ui_switch5_arc_data1, buf);
+        lv_arc_set_value(target, value);
+    } else if (index == 7) {
+        lv_slider_set_value(target, value, LV_ANIM_OFF);
+    }
+}
+
+static const char* get_broker_url(const void* event_data) {
+    if (event_data) {
+        return (const char*)event_data;
+    }
+
+    static ha_cfg_interface ha_cfg;
+    if (ha_cfg_get(&ha_cfg) == ESP_OK) {
+        return ha_cfg.broker_url;
+    }
+
+    return NULL;
+}
+
 static void __view_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-	lv_port_sem_take();
+    lv_port_sem_take();
 
-	switch(id)
-	{
-		case VIEW_EVENT_MQTT_ADDR_CHANGED:
-		{
-			const char* new_broker_ip = lv_textarea_get_text(ui_textarea_ip_0);
-
-			if(is_valid_ipv4(new_broker_ip))
-			{
-				ha_cfg_get(&ha_cfg); // Get current config
-
-				size_t url_len = strlen(new_broker_ip);
-				size_t total_url_len = url_len + 13; //  "mqtt://ip:1883" A total of 13 characters
-
-				// Construct the full broker URL with default MQTT port
-				char broker_url[MAX_BROKER_URL_LEN];
-				assemble_broker_url(new_broker_ip, broker_url, sizeof(broker_url));
-
-				if(total_url_len < sizeof(ha_cfg.broker_url))
-				{
-					strlcpy(ha_cfg.broker_url, broker_url, sizeof(ha_cfg.broker_url));
-
-					if(ha_cfg_set(&ha_cfg) == ESP_OK)
-					{
-						ESP_LOGI(TAG, "Valid broker URL saved: %s", ha_cfg.broker_url);
-						// TODO: Trigger MQTT reconnection
-						show_message_box("Broker IP updated successfully", lv_palette_main(LV_PALETTE_GREEN));
-					}
-					else
-					{
-						ESP_LOGE(TAG, "Failed to save broker IP");
-						show_message_box("Failed to save broker IP", lv_palette_main(LV_PALETTE_RED));
-					}
-				}
-				else
-				{
-					ESP_LOGE(TAG, "Broker URL too long");
-					show_message_box("Broker URL too long", lv_palette_main(LV_PALETTE_RED));
-				}
-			}
-			else
-			{
-				ESP_LOGE(TAG, "Invalid IPv4 address: %s", new_broker_ip);
-				show_message_box("Invalid IPv4 address", lv_palette_main(LV_PALETTE_RED));
+    switch (id) {
+        case VIEW_EVENT_MQTT_ADDR_CHANGED: {
+            const char* new_broker_ip = lv_textarea_get_text(ui_textarea_ip_0);
+            handle_mqtt_addr_change(new_broker_ip);
+            break;
+        }
+        case VIEW_EVENT_HA_ADDR_DISPLAY: {
+			const char* broker_url = get_broker_url(event_data);
+			if (broker_url) {
+				update_ip_textfield(broker_url);
+			} else {
+				ESP_LOGE(TAG, "Failed to get broker URL for display");
 			}
 			break;
-		}
+        }
+        case VIEW_EVENT_HA_SWITCH_SET: {
+            struct view_data_ha_switch_data* p_data = (struct view_data_ha_switch_data*)event_data;
+            ESP_LOGI(TAG, "VIEW_EVENT_HA_SWITCH_SET\n switch index:%d value:%d", p_data->index, p_data->value);
+            update_switch_ui(p_data->index, p_data->value);
+            break;
+        }
+        default:
+            ESP_LOGW(TAG, "Unhandled event: %ld", id);
+            break;
+    }
+
+    lv_port_sem_give();
+}
+
+// static void __view_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+// 	lv_port_sem_take();
+
+// 	switch(id)
+// 	{
 		// case VIEW_EVENT_HA_SENSOR:
 		// {
 		// 	ESP_LOGI(TAG, "event: VIEW_EVENT_HA_SENSOR");
@@ -206,89 +276,11 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 		// 	}
 		// 	break;
 		// }
-		case VIEW_EVENT_HA_SWITCH_SET: /* restore */
-		{
-			struct view_data_ha_switch_data* p_data = (struct view_data_ha_switch_data*)event_data;
-			lv_obj_t* target;
-			ESP_LOGI(TAG, "VIEW_EVENT_HA_SWITCH_SET index:%d", p_data->index);
-			switch(p_data->index)
-			{
-				case 0:
-				{
-					target = ui_switch1;
-					break;
-				}
-				case 1:
-				{
-					target = ui_switch2;
-					break;
-				}
-				case 2:
-				{
-					target = ui_switch3;
-					break;
-				}
-				case 3:
-				{
-					target = ui_switch4;
-					break;
-				}
-				case 4:
-				{
-					target = ui_switch5;
-					break;
-				}
-				case 5:
-				{
-					target = ui_switch6;
-					break;
-				}
-				case 6:
-				{
-					target = ui_switch5_arc1;
-					break;
-				}
-				case 7:
-				{
-					target = ui_switch8_slider1;
-					break;
-				}
-			}
-			if(target != ui_switch5_arc1 && target != ui_switch8_slider1)
-			{
-				if(p_data->value)
-				{
-					lv_obj_add_state(target, LV_STATE_CHECKED);
-				}
-				else
-				{
-					lv_obj_clear_state(target, LV_STATE_CHECKED);
-				}
-			}
-			else if(target == ui_switch5_arc1)
-			{
-				char buf[_UI_TEMPORARY_STRING_BUFFER_SIZE];
-
-				lv_snprintf(buf, sizeof(buf), "%s%d%s", "", p_data->value, " °C");
-
-				lv_label_set_text(ui_switch5_arc_data1, buf);
-
-				lv_arc_set_value(ui_switch5_arc1, p_data->value);
-			}
-			else if(target == ui_switch8_slider1)
-			{
-				lv_slider_set_value(ui_switch8_slider1, p_data->value, LV_ANIM_OFF);
-			}
-			else
-			{
-				ESP_LOGW(TAG, "Wrong processing widget");
-			}
-		}
-		default:
-			break;
-	}
-	lv_port_sem_give();
-}
+// 		default:
+// 			break;
+// 	}
+// 	lv_port_sem_give();
+// }
 
 int indicator_ha_view_init(void) {
 	// ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE,
@@ -301,7 +293,6 @@ int indicator_ha_view_init(void) {
 	/* __app_config_handler */
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
 		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_MQTT_ADDR_CHANGED, __view_event_handler, NULL, NULL));
-
-	ha_cfg_get(&ha_cfg); // Get current config
-	update_ip_textfield(ha_cfg.broker_url);
+	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_ADDR_DISPLAY, __view_event_handler, NULL, NULL));
 }

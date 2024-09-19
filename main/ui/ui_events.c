@@ -11,54 +11,39 @@
 static char* TAG = "ui_events";
 
 void switch_event_cb(lv_event_t* e) {
-	// lv_event_code_t event_code = lv_event_get_code(e);
-	lv_obj_t* target = lv_event_get_target(e);
+    lv_obj_t* target = lv_event_get_target(e);
+    if (target == NULL) {
+        ESP_LOGE(TAG, "Invalid event target");
+        return;
+    }
 
-	bool status = lv_obj_has_state(target, LV_STATE_CHECKED);
+    struct view_data_ha_switch_data switch_data = {
+        .value = lv_obj_has_state(target, LV_STATE_CHECKED) ? 1 : 0,
+        .index = -1
+    };
 
-	struct view_data_ha_switch_data switch_data = {0};
+    if (target == ui_switch1) switch_data.index = 0;
+    else if (target == ui_switch2) switch_data.index = 1;
+    else if (target == ui_switch3) switch_data.index = 2;
+    else if (target == ui_switch4) switch_data.index = 3;
+    else if (target == ui_switch6) switch_data.index = 5;
+    else if (target == ui_switch7) switch_data.index = 6;
+    else {
+        ESP_LOGW(TAG, "Unknown switch target");
+        return;
+    }
 
-	if(status)
-	{
-		switch_data.value = 1;
-	}
-	else
-	{
-		switch_data.value = 0;
-	}
+    ESP_LOGI(TAG, "Switch %d: %d", switch_data.index + 1, switch_data.value);
 
-	if(target == ui_switch1)
-	{
-		switch_data.index = 0;
-	}
-	else if(target == ui_switch2)
-	{
-		switch_data.index = 1;
-	}
-	else if(target == ui_switch3)
-	{
-		switch_data.index = 2;
-	}
-	else if(target == ui_switch4)
-	{
-		switch_data.index = 3;
-	}
-	else if(target == ui_switch6)
-	{
-		switch_data.index = 5;
-	}
-	else if(target == ui_switch7)
-	{
-		switch_data.index = 6;
-	}
-	else
-	{
-		switch_data.index = -1;
-	}
-
-	ESP_LOGI(TAG, " switch%d: %d", switch_data.index + 1, switch_data.value);
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST, &switch_data, sizeof(switch_data),
-					  portMAX_DELAY);
+    esp_err_t err = esp_event_post_to(view_event_handle, 
+                                      VIEW_EVENT_BASE, 
+                                      VIEW_EVENT_HA_SWITCH_ST, 
+                                      &switch_data, 
+                                      sizeof(switch_data), 
+                                      portMAX_DELAY);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to post switch event: %s", esp_err_to_name(err));
+    }
 }
 
 void switch_arc_event_cb(lv_event_t* e) {

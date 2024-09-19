@@ -111,10 +111,10 @@ static int mqtt_msg_handler(const char* p_topic, int topic_len, const char* p_da
         return -1;
     }
     // struct view_data_ha_sensor_data sensor_data;
-    struct view_data_ha_switch_data switch_data;
+    // struct view_data_ha_switch_data switch_data;
 
     // memset(&sensor_data, 0, sizeof(sensor_data));
-    memset(&switch_data, 0, sizeof(switch_data));
+    // memset(&switch_data, 0, sizeof(switch_data));
 
     // for(int i = 0; i < CONFIG_HA_SENSOR_ENTITY_NUM; i++)
     // {
@@ -133,6 +133,10 @@ static int mqtt_msg_handler(const char* p_topic, int topic_len, const char* p_da
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         cjson_item = cJSON_GetObjectItem(root, ha_switch_entities[i].key);
         if (cjson_item != NULL && 0 == strncmp(p_topic, ha_switch_entities->topic_set, topic_len)) {
+                struct view_data_ha_switch_data switch_data;
+
+            // memset(&sensor_data, 0, sizeof(sensor_data));
+            memset(&switch_data, 0, sizeof(switch_data));
             switch_data.index = i;
             switch_data.value = cjson_item->valueint;
             printf("valueint :%d", cjson_item->valueint);
@@ -333,6 +337,22 @@ static void __cfg_event_handler(void* handler_args, esp_event_base_t base, int32
                           sizeof(instance_mqtt_t),
                           portMAX_DELAY);
         break;
+    case HA_CFG_BROKER_CHANGED: {
+        if(!event_data) break;
+        const char* broker_url = (const char*)event_data;
+        ESP_LOGI(TAG, "HA_CFG_BROKER_CHANGED: %s", broker_url);
+        esp_err_t ret = esp_mqtt_client_stop(instance_ptr->mqtt_client);
+        ret = esp_mqtt_client_set_uri(instance_ptr->mqtt_client, broker_url);
+        ret = esp_mqtt_client_start(instance_ptr->mqtt_client);
+        // ESP_LOGI(TAG, "Broker address changed, reconnecting MQTT client");
+        // esp_event_post_to(mqtt_app_event_handle,
+        //                   MQTT_APP_EVENT_BASE,
+        //                   MQTT_APP_RESTART,
+        //                   &instance_ptr,
+        //                   sizeof(instance_mqtt_t),
+        //                   portMAX_DELAY);
+        break;
+    }
     default:
         break;
     }
@@ -344,22 +364,27 @@ static void __cfg_event_handler(void* handler_args, esp_event_base_t base, int32
  * @param instance
  */
 static void _mqtt_ha_start(instance_mqtt* instance) {
-    if (get_mqtt_net_flag() == false) {
+    if (!get_mqtt_net_flag()) {
         return;
-    }
-
-    if (instance->mqtt_cfg != NULL) {
-        free(instance->mqtt_cfg);
     }
 
     if (instance->mqtt_client != NULL) {
         esp_mqtt_client_stop(instance->mqtt_client);
         esp_mqtt_client_destroy(instance->mqtt_client);
+        instance->mqtt_client = NULL;
+    }
+
+   if (instance->mqtt_cfg != NULL) {
+        free(instance->mqtt_cfg);
+        instance->mqtt_cfg = NULL;
     }
 
     // read from nvs
     ha_cfg_interface hf_cfg;
-    ha_cfg_get(&hf_cfg);
+    if (ha_cfg_get(&hf_cfg) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get HA configuration");
+        return;
+    }
 
     instance->mqtt_cfg  = (esp_mqtt_client_config_t*)malloc(sizeof(esp_mqtt_client_config_t));
     *instance->mqtt_cfg = (esp_mqtt_client_config_t){
@@ -375,50 +400,20 @@ static void _mqtt_ha_start(instance_mqtt* instance) {
     ESP_LOGI(TAG, "| password                     | %-40s |", hf_cfg.password);
 
     instance->mqtt_client = esp_mqtt_client_init(instance->mqtt_cfg);
+    if (instance->mqtt_client == NULL) {
+        ESP_LOGE(TAG, "Failed to initialize MQTT client");
+        return;
+    }
     esp_mqtt_client_register_event(instance->mqtt_client, ESP_EVENT_ANY_ID, instance->mqtt_event_handler, NULL);
-    esp_mqtt_client_start(instance->mqtt_client);
+    esp_err_t start_result = esp_mqtt_client_start(instance->mqtt_client);
+    if (start_result != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(start_result));
+    } else {
+        ESP_LOGI(TAG, "MQTT client started successfully");
+    }
 }
-/**
- * @brief Home Assistant Broker configuration default here
- *
- * @param instance
- */
-// static void __mqtt_ha_init(instance_mqtt* instance) {
-// 	if(instance == NULL)
-// 	{
-// 		ESP_LOGE(TAG, "instance is NULL");
-// 		return;
-// 	}
-
-// 	instance->mqtt_name = TAG;
-// 	instance->mqtt_connected_flag = false; /* didn't connected, control by mqtt controller*/
-// 	instance->mqtt_client = NULL; // client handler, use for start and stop
-// 	instance->mqtt_cfg = NULL;
-// 	instance->mqtt_event_handler = mqtt_event_handler;
-// 	instance->mqtt_starter = _mqtt_ha_start;
-// }
 
 /****************** Public Function Definitions ******************/
-void ha_mqtt_init(void) {
-    ESP_LOGI(TAG, "mqtt_ha_init");
-
-    mqtt_ha_instance = (instance_mqtt){.mqtt_name           = TAG,
-                                       .mqtt_connected_flag = false, /* didn't connected, control by mqtt controller*/
-                                       .mqtt_client         = NULL,  // client handler, use for start and stop
-                                       .mqtt_cfg            = NULL,
-                                       .mqtt_event_handler  = mqtt_event_handler,
-                                       .mqtt_starter        = _mqtt_ha_start,
-                                       .is_using            = true};
-
-    /* 恢复之前得状态 */
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(cmd_cfg_event_handle,
-                                                             CMD_CFG_EVENT_BASE,
-                                                             HA_CFG_SET,
-                                                             __cfg_event_handler,
-                                                             NULL,
-                                                             NULL)); /* 重启服务(会进行保存)，*/
-}
-
 /**
  * @brief restore the configuration of a broker
  * to restore the broker address used last time
@@ -454,17 +449,61 @@ esp_err_t ha_cfg_get(ha_cfg_interface* ha_cfg) {
 esp_err_t ha_cfg_set(ha_cfg_interface* cfg) {
     esp_err_t err = indicator_nvs_write(MQTT_HA_CFG_STORAGE, cfg, sizeof(ha_cfg_interface));
     if (err != ESP_OK) {
-        ESP_LOGI(TAG, "cfg write err:%d", err);
+        ESP_LOGI(TAG, "ha cfg write err:%d", err);
     } else {
-        ESP_LOGI(TAG, "cfg write successful");
+        ESP_LOGI(TAG, "ha cfg write successful");
     }
     return err;
 }
 
+ESP_EVENT_DEFINE_BASE(HA_CFG_EVENT_BASE);
+esp_event_loop_handle_t ha_cfg_event_handle;
+
 int indicator_ha_model_init(void) {
     ha_ctrl_cfg_restore(); /* restore the widets status last time */
     ha_entites_init();     /* define the entities, the ha data model */
-    ha_mqtt_init();        /* start register mqtt service */
+
+	esp_event_loop_args_t ha_event_task_args = {.queue_size = 5,
+												  .task_name = "ha_event_task",
+												  .task_priority = uxTaskPriorityGet(NULL),
+												  .task_stack_size = 4096,
+												  .task_core_id = tskNO_AFFINITY};
+
+	ESP_ERROR_CHECK(esp_event_loop_create(&ha_event_task_args, &ha_cfg_event_handle));
+
+
+    /* start register mqtt service */
+    ESP_LOGI(TAG, "mqtt_ha_init");
+
+    mqtt_ha_instance = (instance_mqtt){.mqtt_name           = TAG,
+                                       .mqtt_connected_flag = false, /* didn't connected, control by mqtt controller*/
+                                       .mqtt_client         = NULL,  // client handler, use for start and stop
+                                       .mqtt_cfg            = NULL,
+                                       .mqtt_event_handler  = mqtt_event_handler,
+                                       .mqtt_starter        = _mqtt_ha_start,
+                                       .is_using            = true};
+
+    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(ha_cfg_event_handle,
+                                                             HA_CFG_EVENT_BASE,
+                                                             ESP_EVENT_ANY_ID,
+                                                             __cfg_event_handler,
+                                                             NULL,
+                                                             NULL)); /* 重启服务(会进行保存)，*/
+
+    /* monitor network status*/
+    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle,
+                                                             VIEW_EVENT_BASE,
+                                                             VIEW_EVENT_WIFI_ST,
+                                                             __view_event_handler,
+                                                             NULL,
+                                                             NULL));
+
+    /* obtain sensor data */
+    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
+        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA, __view_event_handler, NULL, NULL));
+    /* get screen widgets status */
+    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
+        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST, __view_event_handler, NULL, NULL));
 
     // Restore switch states for UI and HA
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
@@ -476,19 +515,6 @@ int indicator_ha_model_init(void) {
                           sizeof(switch_data),
                           portMAX_DELAY);
     }
-
-    /* monitor network status*/
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle,
-                                                             VIEW_EVENT_BASE,
-                                                             VIEW_EVENT_WIFI_ST,
-                                                             __view_event_handler,
-                                                             NULL,
-                                                             NULL)); /* 会和 ha_init 冲突把？*/
-
-    /* obtain sensor data */
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA, __view_event_handler, NULL, NULL));
-    /* get screen widgets status */
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST, __view_event_handler, NULL, NULL));
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_ADDR_DISPLAY, NULL, 0,
+                    portMAX_DELAY);
 }

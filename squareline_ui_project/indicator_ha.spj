@@ -42503,7 +42503,7 @@
                           {
                             "nid": -115026621,
                             "strtype": "CALL FUNCTION/Function_name",
-                            "strval": "",
+                            "strval": "mqtt_addr_changed",
                             "InheritedType": 10
                           },
                           {
@@ -43765,7 +43765,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 179,
+    "backup_cnt": 191,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",
