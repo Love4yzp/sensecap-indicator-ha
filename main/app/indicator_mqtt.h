@@ -1,12 +1,12 @@
-/*
- * File: indicator.mqtt.h
+/**
+ * @file indicator.mqtt.h
+ * @date  19 September 2024
+
+ * @author Spencer Yan
  *
- * Created on:  05 September 2023
- *     Author: Spencer Yan
+ * @note Description of the file
  *
- * Description: the class of MQTT
- *
- * Copyright: © 2023, Seeed Studio
+ * @copyright © 2024, Seeed Studio
  */
 
 #ifndef INDICATOR_MQTT_H
@@ -31,6 +31,7 @@
 #include <esp_mac.h>
 
 #include <string.h>
+
 #define MQTT_BROKER_STORAGE "MQTT" // 52 bytes
 
 ESP_EVENT_DECLARE_BASE(MQTT_APP_EVENT_BASE);
@@ -64,11 +65,10 @@ typedef struct instance_mqtt {
     bool                      is_using;
 } instance_mqtt, *instance_mqtt_t;
 
-/* Variables */
-bool get_mqtt_net_flag(void);
-
 /* Functions */
+
 void log_error_if_nonzero(const char *message, int error_code);
 int  indicator_mqtt_init(void);
 
+bool get_mqtt_net_flag(void);
 #endif // INDICATOR_MQTT_H

@@ -1,11 +1,6 @@
 #include "indicator_mqtt.h"
-static const char* TAG = "MQTT";
 
-enum MQTT_START_ENUM
-{
-	MQTT_START = 0,
-	MQTT_RESTART
-};
+static const char* TAG = "INDICATOR_MQTT";
 
 ESP_EVENT_DEFINE_BASE(MQTT_APP_EVENT_BASE);
 esp_event_loop_handle_t mqtt_app_event_handle;
@@ -24,17 +19,18 @@ static void __wifi_event_handler(void* handler_args, esp_event_base_t base, int3
 		case VIEW_EVENT_WIFI_ST:
 		{
 			struct view_data_wifi_st* p_st = (struct view_data_wifi_st*)event_data;
-			if(p_st->is_network)
-			{ // avoid repeatly start mqtt
-				if(mqtt_net_flag == false)
-				{
-					mqtt_net_flag = true; // WiFI Network is connected
-				}
-			}
-			else
-			{
-				mqtt_net_flag = false;
-			}
+			mqtt_net_flag = p_st->is_network;
+			// if(p_st->is_network)
+			// { // avoid repeatly start mqtt
+			// 	if(mqtt_net_flag == false)
+			// 	{
+			// 		mqtt_net_flag = true; // WiFI Network is connected
+			// 	}
+			// }
+			// else
+			// {
+			// 	mqtt_net_flag = false;
+			// }
 			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_ST is_network:%d\tmqtt_net_flag:%d", p_st->is_network, mqtt_net_flag);
 			break;
 		}
@@ -57,119 +53,83 @@ static void __wifi_event_handler(void* handler_args, esp_event_base_t base, int3
  * @note Use MQTT_RESTART when you need to change the MQTT broker URL, username, password, or other connection
  * parameters.
  */
-static void mqtt_start_interface(const instance_mqtt* instance, enum MQTT_START_ENUM flag) {
+static void mqtt_start_interface(const instance_mqtt* instance, enum MQTT_APP_EVENT flag) {
+	if(!mqtt_net_flag || !instance || !instance->mqtt_name || !instance->mqtt_starter)
+	{
+		ESP_LOGE(TAG, "Cannot start MQTT: %s", !mqtt_net_flag ? "No network" : "Invalid instance");
+		return;
+	}
+
 	if(mqtt_net_flag == false)
 	{
 		return;
 	}
-
-	// Check for NULL instance or missing fields
-	if(!instance)
-	{
-		ESP_LOGE(TAG, "instance is NULL, make sure you have initialized instance");
-		return;
-	}
-	if(!instance->mqtt_name)
-	{
-		ESP_LOGE(TAG, "mqtt_name is NULL, make sure you have initialized instance");
-		return;
-	}
-	if(!instance->mqtt_starter)
-	{
-		ESP_LOGE(TAG, "mqtt_starter is NULL, make sure you have initialized instance");
-		return;
-	}
-
+	
 	// Check for existing MQTT connection
-	if(instance->mqtt_connected_flag)
+	if(flag == MQTT_APP_START && instance->mqtt_connected_flag)
 	{
-		switch(flag)
-		{
-			case MQTT_RESTART:
-				// esp_mqtt_client_stop(instance->mqtt_client);
-				// esp_mqtt_client_destroy(instance->mqtt_client);
-				break;
-			case MQTT_START:
-				ESP_LOGW(TAG, "%s is already connected.", instance->mqtt_name);
-				return;
-			default:
-				ESP_LOGE(TAG, "Invalid flag.");
-				break;
-		}
+		ESP_LOGW(TAG, "%s is already connected.", instance->mqtt_name);
+		return;
 	}
 
+	if(flag == MQTT_APP_RESTART && instance->mqtt_client)
+	{
+		esp_mqtt_client_stop(instance->mqtt_client);
+		esp_mqtt_client_destroy(instance->mqtt_client);
+	}
 	// first connecntion and reconnect
 	instance->mqtt_starter(instance);
 }
 
 static void __app_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-	if(event_data == NULL)
+	instance_mqtt_t instance = *(instance_mqtt_t*)event_data;
+	if(!instance)
 	{
-		ESP_LOGE(TAG, "event_data is NULL");
+		ESP_LOGE(TAG, "Invalid MQTT instance");
 		return;
 	}
-	instance_mqtt_t* p_instance = (instance_mqtt_t*)event_data;
-	instance_mqtt* instance = *p_instance;
 	switch(id)
 	{
 		case MQTT_APP_START:
-		{
-			ESP_LOGI(TAG, "event: MQTT_START - register an instance");
-			if(mqtt_net_flag && (instance->is_using))
-			{
-				mqtt_start_interface(instance, MQTT_START);
-			}
-
-			break;
-		}
 		case MQTT_APP_RESTART:
-		{
-			ESP_LOGI(TAG, "event: MQTT_RESTART");
-			if(mqtt_net_flag && (instance->is_using))
+			if(mqtt_net_flag && instance->is_using)
 			{
-				mqtt_start_interface(instance, MQTT_RESTART);
+				mqtt_start_interface(instance, id);
 			}
 			break;
-		}
 		case MQTT_APP_STOP:
-		{
-			ESP_LOGI(TAG, "event: MQTT_STOP");
-			if(instance->mqtt_connected_flag)
+			if(instance->mqtt_connected_flag && instance->mqtt_client)
 			{
 				esp_mqtt_client_stop(instance->mqtt_client);
 				esp_mqtt_client_destroy(instance->mqtt_client);
+				instance->mqtt_client = NULL;
+				instance->mqtt_connected_flag = false;
 			}
 			break;
-		}
+		default:
+			ESP_LOGW(TAG, "Unknown MQTT app event: %ld", id);
+			break;
 	}
 }
 
 int indicator_mqtt_init(void) {
-	/* create a loop event for mqtt clients */
-	esp_event_loop_args_t ha_event_task_args = {.queue_size = 5,
-												.task_name = "ha_event_task",
-												.task_priority = uxTaskPriorityGet(NULL),
-												.task_stack_size = 10240,
-												.task_core_id = tskNO_AFFINITY};
-	ESP_ERROR_CHECK(esp_event_loop_create(&ha_event_task_args, &mqtt_app_event_handle));
+	esp_event_loop_args_t mqtt_event_task_args = {.queue_size = 5,
+												  .task_name = "mqtt_event_task",
+												  .task_priority = uxTaskPriorityGet(NULL),
+												  .task_stack_size = 4096,
+												  .task_core_id = tskNO_AFFINITY};
 
-	/* monitor VIEW_EVENT_WIFI_ST */
+	ESP_ERROR_CHECK(esp_event_loop_create(&mqtt_event_task_args, &mqtt_app_event_handle));
+
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
 															 __wifi_event_handler, NULL, NULL));
-	/* monitor WIFI_EVENT_STA_DISCONNECTED */
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, WIFI_EVENT_STA_DISCONNECTED, __wifi_event_handler, NULL, NULL));
+	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED,
+															 __wifi_event_handler, NULL, NULL));
 
-	/* __app_event_handler */
-	/* monitor MQTT_APP_START*/
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(mqtt_app_event_handle, MQTT_APP_EVENT_BASE, MQTT_APP_START,
-															 __app_event_handler, NULL, NULL));
-	/* monitor MQTT_APP_RESTART*/
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(mqtt_app_event_handle, MQTT_APP_EVENT_BASE,
-															 MQTT_APP_RESTART, __app_event_handler, NULL, NULL));
+															 ESP_EVENT_ANY_ID, __app_event_handler, NULL, NULL));
 
-	// ESP_ERROR_CHECK(esp_event_handler_instance_register_with(mqtt_app_event_handle, MQTT_APP_EVENT_BASE, MQTT_APP_STOP,
-	// 														 __app_event_handler, NULL, NULL));
+	return ESP_OK;
 }
 
 // unnessary function
