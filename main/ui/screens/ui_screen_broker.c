@@ -142,6 +142,7 @@ void ui_screen_broker_screen_init(void)
     lv_obj_add_event_cb(ui_back_wifi1, ui_event_back_wifi1, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_wifi__st_button_ha_data3, ui_event_wifi__st_button_ha_data3, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_textarea_ip_0, ui_event_textarea_ip_0, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_Button1, ui_event_Button1, LV_EVENT_ALL, NULL);
     lv_keyboard_set_textarea(ui_Keyboard_ip, ui_textarea_ip_0);
     lv_obj_add_event_cb(ui_Keyboard_ip, ui_event_Keyboard_ip, LV_EVENT_ALL, NULL);
 

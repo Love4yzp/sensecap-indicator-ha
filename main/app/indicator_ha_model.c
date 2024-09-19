@@ -50,8 +50,12 @@ ha_switch_entity_t ha_switch_entites[CONFIG_HA_SWITCH_ENTITY_NUM];
 
 /****************** MQTT Configutation ******************/
 static void _mqtt_ha_start(instance_mqtt* instance);
-static void __mqtt_ha_init(instance_mqtt* instance);
 static void mqtt_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data);
+
+static void ha_entities_init(void);
+static void ha_ctrl_cfg_restore(void);
+static void ha_ctrl_cfg_save(void);
+static int mqtt_msg_handler(const char* topic, int topic_len, const char* data, int data_len);
 
 /*Instance*/
 instance_mqtt mqtt_ha_instance; // global entrance
@@ -519,28 +523,34 @@ static void _mqtt_ha_start(instance_mqtt* instance) {
  *
  * @param instance
  */
-static void __mqtt_ha_init(instance_mqtt* instance) {
-	if(instance == NULL)
-	{
-		ESP_LOGE(TAG, "instance is NULL");
-		return;
-	}
+// static void __mqtt_ha_init(instance_mqtt* instance) {
+// 	if(instance == NULL)
+// 	{
+// 		ESP_LOGE(TAG, "instance is NULL");
+// 		return;
+// 	}
 
-	instance->mqtt_name = TAG;
-	instance->mqtt_connected_flag = false; /* didn't connected, control by mqtt controller*/
-	instance->mqtt_client = NULL; // client handler, use for start and stop
-	instance->mqtt_cfg = NULL;
-	instance->mqtt_event_handler = mqtt_event_handler;
-	instance->mqtt_starter = _mqtt_ha_start;
-}
+// 	instance->mqtt_name = TAG;
+// 	instance->mqtt_connected_flag = false; /* didn't connected, control by mqtt controller*/
+// 	instance->mqtt_client = NULL; // client handler, use for start and stop
+// 	instance->mqtt_cfg = NULL;
+// 	instance->mqtt_event_handler = mqtt_event_handler;
+// 	instance->mqtt_starter = _mqtt_ha_start;
+// }
 
 /****************** Public Function Definitions ******************/
-void mqtt_ha_init(void) {
+void ha_mqtt_init(void) {
 	ESP_LOGI(TAG, "mqtt_ha_init");
 
+	mqtt_ha_instance.mqtt_name = TAG;
+	mqtt_ha_instance.mqtt_connected_flag = false; /* didn't connected, control by mqtt controller*/
+	mqtt_ha_instance.mqtt_client = NULL; // client handler, use for start and stop
+	mqtt_ha_instance.mqtt_cfg = NULL;
+	mqtt_ha_instance.mqtt_event_handler = mqtt_event_handler;
+	mqtt_ha_instance.mqtt_starter = _mqtt_ha_start;
 	mqtt_ha_instance.is_using = true;
 	/* instance_ptr == &mqtt_ha_instance; */
-	__mqtt_ha_init(&mqtt_ha_instance);
+	// __mqtt_ha_init(&mqtt_ha_instance);
 
 	/* 恢复之前得状态 */
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(cmd_cfg_event_handle, CMD_CFG_EVENT_BASE, HA_CFG_SET,
@@ -553,7 +563,7 @@ void mqtt_ha_init(void) {
  * to restore the broker address used last time
  *
  */
-void ha_cfg_get(ha_cfg_interface* ha_cfg) {
+esp_err_t ha_cfg_get(ha_cfg_interface* ha_cfg) {
 	int len = sizeof(ha_cfg_interface);
 	memset(ha_cfg, 0, sizeof(ha_cfg_interface));
 	esp_err_t err = indicator_nvs_read(MQTT_HA_CFG_STORAGE, ha_cfg, &len);
@@ -572,12 +582,13 @@ void ha_cfg_get(ha_cfg_interface* ha_cfg) {
 		{
 			ESP_LOGI(TAG, "mqtt broker cfg read err:%d", err);
 		}
-		// using default setting
-		strncpy(ha_cfg->broker_url, CONFIG_BROKER_URL, sizeof(ha_cfg->broker_url) - 1);
-		strncpy(ha_cfg->client_id, CONFIG_MQTT_CLIENT_ID, sizeof(ha_cfg->client_id) - 1);
-		strncpy(ha_cfg->username, CONFIG_MQTT_USERNAME, sizeof(ha_cfg->username) - 1);
-		strncpy(ha_cfg->password, CONFIG_MQTT_PASSWORD, sizeof(ha_cfg->password) - 1);
+		// Using default settings
+		strlcpy(ha_cfg->broker_url, CONFIG_BROKER_URL, sizeof(ha_cfg->broker_url));
+		strlcpy(ha_cfg->client_id, CONFIG_MQTT_CLIENT_ID, sizeof(ha_cfg->client_id));
+		strlcpy(ha_cfg->username, CONFIG_MQTT_USERNAME, sizeof(ha_cfg->username));
+		strlcpy(ha_cfg->password, CONFIG_MQTT_PASSWORD, sizeof(ha_cfg->password));
 	}
+	return err;
 }
 
 /**
@@ -585,7 +596,7 @@ void ha_cfg_get(ha_cfg_interface* ha_cfg) {
  * store the broker address that will be used next time when device restart
  *
  */
-void ha_cfg_set(ha_cfg_interface* cfg) {
+esp_err_t ha_cfg_set(ha_cfg_interface* cfg) {
 	esp_err_t err = indicator_nvs_write(MQTT_HA_CFG_STORAGE, cfg, sizeof(ha_cfg_interface));
 	if(err != ESP_OK)
 	{
@@ -595,12 +606,13 @@ void ha_cfg_set(ha_cfg_interface* cfg) {
 	{
 		ESP_LOGI(TAG, "cfg write successful");
 	}
+	return err;
 }
 
 int indicator_ha_model_init(void) {
 	ha_ctrl_cfg_restore(); /* restore the widets status last time */
 	ha_entites_init(); /* define the entities, the ha data model */
-	mqtt_ha_init(); /* start register mqtt service */
+	ha_mqtt_init(); /* start register mqtt service */
 
 	//  restore switch state for UI and HA.
 	struct view_data_ha_switch_data switch_data;

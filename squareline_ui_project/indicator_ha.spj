@@ -42452,6 +42452,71 @@
                     "strtype": "BUTTON/Style_main",
                     "strval": "lv.PART.MAIN, Rectangle, Pad, Text ",
                     "InheritedType": 11
+                  },
+                  {
+                    "disabled": false,
+                    "nid": 1556832320,
+                    "strtype": "BUTTON/EventHandler",
+                    "strval": "PRESSED",
+                    "childs": [
+                      {
+                        "nid": -1474640270,
+                        "strtype": "_event/name",
+                        "strval": "changeAddr",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -1532776763,
+                        "strtype": "_event/condition_C",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": -436744229,
+                        "strtype": "_event/condition_P",
+                        "strval": "",
+                        "InheritedType": 10
+                      },
+                      {
+                        "nid": 1080248845,
+                        "strtype": "_event/action",
+                        "strval": "CALL FUNCTION",
+                        "childs": [
+                          {
+                            "nid": -1923674090,
+                            "strtype": "CALL FUNCTION/Name",
+                            "strval": "CALL FUNCTION",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -582113778,
+                            "strtype": "CALL FUNCTION/Call",
+                            "strval": "<{Function_name}>( event_struct )",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -572349352,
+                            "strtype": "CALL FUNCTION/CallC",
+                            "strval": "<{Function_name}>( e );",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -115026621,
+                            "strtype": "CALL FUNCTION/Function_name",
+                            "strval": "",
+                            "InheritedType": 10
+                          },
+                          {
+                            "nid": -687807223,
+                            "strtype": "CALL FUNCTION/Dont_export_function",
+                            "strval": "False",
+                            "InheritedType": 2
+                          }
+                        ],
+                        "InheritedType": 10
+                      }
+                    ],
+                    "InheritedType": 4
                   }
                 ],
                 "saved_objtypeKey": "BUTTON"

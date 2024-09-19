@@ -36,8 +36,8 @@ typedef struct
 
 int indicator_ha_model_init(void);
 int indicator_ha_view_init(void);
-void ha_cfg_get(ha_cfg_interface* cfg);
-void ha_cfg_set(ha_cfg_interface* cfg);
+esp_err_t ha_cfg_get(ha_cfg_interface* cfg);
+esp_err_t ha_cfg_set(ha_cfg_interface* cfg);
 
 #ifdef __cplusplus
 } /*extern "C"*/

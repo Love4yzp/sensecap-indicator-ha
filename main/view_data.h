@@ -188,6 +188,7 @@ enum
 	VIEW_EVENT_FACTORY_RESET, // NULL
 	VIEW_EVENT_SCREEN_CTRL, // bool  0:disable , 1:enable
 
+	VIEW_EVENT_MQTT_ADDR_CHANGED, // url changed
 	VIEW_EVENT_HA_MQTT_CONNECTED,
 	VIEW_EVENT_HA_SENSOR, // struct view_data_ha_sensor_data
 	VIEW_EVENT_HA_SWITCH_ST, // struct view_data_ha_switch_data

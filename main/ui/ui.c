@@ -192,6 +192,7 @@ lv_obj_t * ui_Label3;
 void ui_event_textarea_ip_0(lv_event_t * e);
 lv_obj_t * ui_textarea_ip_0;
 lv_obj_t * ui_Label4;
+void ui_event_Button1(lv_event_t * e);
 lv_obj_t * ui_Button1;
 lv_obj_t * ui_Label5;
 lv_obj_t * ui_Container2;
@@ -507,6 +508,14 @@ void ui_event_textarea_ip_0(lv_event_t * e)
     lv_obj_t * target = lv_event_get_target(e);
     if(event_code == LV_EVENT_CLICKED) {
         _ui_flag_modify(ui_Keyboard_ip, LV_OBJ_FLAG_HIDDEN, _UI_MODIFY_FLAG_REMOVE);
+    }
+}
+void ui_event_Button1(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    lv_obj_t * target = lv_event_get_target(e);
+    if(event_code == LV_EVENT_PRESSED) {
+        mqtt_addr_changed(e);
     }
 }
 void ui_event_Keyboard_ip(lv_event_t * e)

@@ -6,6 +6,7 @@
 #include "ui.h"
 #include "view_data.h"
 #include "widgets/lv_slider.h"
+#include "widgets/lv_textarea.h"
 
 static char* TAG = "ui_events";
 
@@ -91,4 +92,9 @@ void ui_event_wifi_config(lv_event_t* e) {
 void ui_event_wifi_start(lv_event_t* e) {
 	ESP_LOGI(TAG, "entry wifi request");
 	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_START, NULL, 0, portMAX_DELAY);
+}
+
+void mqtt_addr_changed(lv_event_t* e) {
+	ESP_LOGI(TAG, "addr button comfirmed");
+	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, NULL, portMAX_DELAY);
 }

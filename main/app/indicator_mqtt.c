@@ -1,5 +1,4 @@
 #include "indicator_mqtt.h"
-
 static const char* TAG = "MQTT";
 
 enum MQTT_START_ENUM
@@ -161,6 +160,7 @@ int indicator_mqtt_init(void) {
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
 		view_event_handle, VIEW_EVENT_BASE, WIFI_EVENT_STA_DISCONNECTED, __wifi_event_handler, NULL, NULL));
 
+	/* __app_event_handler */
 	/* monitor MQTT_APP_START*/
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(mqtt_app_event_handle, MQTT_APP_EVENT_BASE, MQTT_APP_START,
 															 __app_event_handler, NULL, NULL));

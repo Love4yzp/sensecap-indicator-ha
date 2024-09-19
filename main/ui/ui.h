@@ -186,6 +186,7 @@ extern lv_obj_t * ui_Label3;
 void ui_event_textarea_ip_0(lv_event_t * e);
 extern lv_obj_t * ui_textarea_ip_0;
 extern lv_obj_t * ui_Label4;
+void ui_event_Button1(lv_event_t * e);
 extern lv_obj_t * ui_Button1;
 extern lv_obj_t * ui_Label5;
 extern lv_obj_t * ui_Container2;
