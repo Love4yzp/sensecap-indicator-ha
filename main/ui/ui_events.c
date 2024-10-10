@@ -10,6 +10,7 @@
 
 static char* TAG = "ui_events";
 
+// When the widget value changed, this function will be triggered.
 void switch_event_cb(lv_event_t* e) {
     lv_obj_t* target = lv_event_get_target(e);
     if (target == NULL) {
@@ -35,9 +36,7 @@ void switch_event_cb(lv_event_t* e) {
 
     ESP_LOGI(TAG, "Switch %d: %d", switch_data.index + 1, switch_data.value);
 
-    esp_err_t err = esp_event_post_to(view_event_handle, 
-                                      VIEW_EVENT_BASE, 
-                                      VIEW_EVENT_HA_SWITCH_ST, 
+    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST, 
                                       &switch_data, 
                                       sizeof(switch_data), 
                                       portMAX_DELAY);

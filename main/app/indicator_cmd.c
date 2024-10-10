@@ -94,7 +94,7 @@ static int mqtt_config_set(int argc, char **argv)
             snprintf(modified_url, sizeof(modified_url), "mqtt://%s", url);
 
             // Check if the modified URL is valid
-            if (isValidIP(modified_url + 7) || isValidDomain(modified_url + 7)) {
+            if (is_valid_ipv4(modified_url + 7)) {
                 memset(ha_cfg.broker_url, 0, sizeof(ha_cfg.broker_url));
                 strncpy(ha_cfg.broker_url, modified_url, sizeof(ha_cfg.broker_url) - 1);
                 ESP_LOGI(TAG, "Set MQTT broker URL: %s", ha_cfg.broker_url);
@@ -104,7 +104,7 @@ static int mqtt_config_set(int argc, char **argv)
         } else {
             // "mqtt://" is already present
             // Check if the URL is valid
-            if (isValidIP(url + 7) || isValidDomain(url + 7)) {
+            if (is_valid_ipv4(url + 7)) {
                 memset(ha_cfg.broker_url, 0, sizeof(ha_cfg.broker_url));
                 strncpy(ha_cfg.broker_url, url, sizeof(ha_cfg.broker_url) - 1);
                 ESP_LOGI(TAG, "Set MQTT broker URL: %s", ha_cfg.broker_url);

@@ -103,11 +103,9 @@ static void ha_ctrl_cfg_save(void) {
 }
 
 static int mqtt_msg_handler(const char* p_topic, int topic_len, const char* p_data, int data_len) {
-    cJSON* root       = NULL;
-    cJSON* cjson_item = NULL;
-
-    root = cJSON_ParseWithLength(p_data, data_len);
+    cJSON* root = cJSON_ParseWithLength(p_data, data_len);
     if (root == NULL) {
+        ESP_LOGE(TAG, "Failed to parse JSON data");
         return -1;
     }
     // struct view_data_ha_sensor_data sensor_data;
@@ -131,26 +129,25 @@ static int mqtt_msg_handler(const char* p_topic, int topic_len, const char* p_da
     // }
 
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
-        cjson_item = cJSON_GetObjectItem(root, ha_switch_entities[i].key);
-        if (cjson_item != NULL && 0 == strncmp(p_topic, ha_switch_entities->topic_set, topic_len)) {
-                struct view_data_ha_switch_data switch_data;
-
-            // memset(&sensor_data, 0, sizeof(sensor_data));
-            memset(&switch_data, 0, sizeof(switch_data));
-            switch_data.index = i;
-            switch_data.value = cjson_item->valueint;
-            printf("valueint :%d", cjson_item->valueint);
-            esp_event_post_to(view_event_handle,
-                              VIEW_EVENT_BASE,
-                              VIEW_EVENT_HA_SWITCH_SET,
-                              &switch_data,
-                              sizeof(switch_data),
-                              portMAX_DELAY);
-            // return 0;
+        if (strncmp(p_topic, ha_switch_entities[i].topic_set, topic_len) == 0) { // The corresponding Topic then takes action
+            cJSON* cjson_item = cJSON_GetObjectItem(root, ha_switch_entities[i].key);
+            if (cjson_item != NULL && cJSON_IsNumber(cjson_item)) {
+                struct view_data_ha_switch_data switch_data = {
+                    .index = i,
+                    .value = cjson_item->valueint
+                };
+                ESP_LOGI(TAG, "MQTT message: switch %d set to %d", i, switch_data.value);
+                esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_SET,
+                                  &switch_data, sizeof(switch_data), portMAX_DELAY);
+                cJSON_Delete(root);
+                return 0;
+            }
         }
     }
-prase_end:
+
+    ESP_LOGW(TAG, "No matching topic or invalid JSON structure");
     cJSON_Delete(root);
+    return -1;
 }
 
 static void mqtt_event_handler(void* handler_args, esp_event_base_t base, int32_t event_id, void* event_data) {
@@ -194,8 +191,8 @@ static void mqtt_event_handler(void* handler_args, esp_event_base_t base, int32_
         break;
     case MQTT_EVENT_DATA:
         ESP_LOGI(TAG, "MQTT_EVENT_DATA");
-        printf("TOPIC=%.*s\r\n", event->topic_len, event->topic);
-        printf("DATA=%.*s\r\n", event->data_len, event->data);
+        printf("MQTT_EVENT_DATA: TOPIC=%.*s\r\n", event->topic_len, event->topic);
+        printf("MQTT_EVENT_DATA: DATA=%.*s\r\n", event->data_len, event->data);
         mqtt_msg_handler(event->topic, event->topic_len, event->data, event->data_len);
         break;
     case MQTT_EVENT_ERROR:
@@ -304,7 +301,7 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 
     case VIEW_EVENT_HA_SWITCH_ST:
         ESP_LOGI(TAG, "event: VIEW_EVENT_HA_SWITCH_ST");
-        publish_switch_state((struct view_data_ha_switch_data*)event_data);
+        publish_switch_state((struct view_data_ha_switch_data*)event_data); // broadcast: my state.
         break;
 
     case VIEW_EVENT_WIFI_ST:

@@ -1,4 +1,3 @@
-
 #include "core/lv_obj.h"
 #include "extra/widgets/msgbox/lv_msgbox.h"
 #include "indicator_ha.h"
@@ -6,7 +5,7 @@
 #include "view_data.h"
 #include "ui.h"
 #include "widgets/lv_textarea.h"
-#include <regex.h>
+#include "indicator_util.h"
 #include <stdbool.h>
 
 #define HA_CFG_STORAGE	   "ha-cfg"
@@ -19,84 +18,17 @@ static const char* TAG = "ha-view";
 
 static ha_cfg_interface ha_cfg;
 
-static bool is_valid_ipv4(const char* ip_address) {
-	regex_t regex;
-	int reti;
-	bool is_valid = false;
+static const char* _get_broker_url(const void* event_data) {
+    if (event_data) {
+        return (const char*)event_data;
+    }
 
-	// IPv4 address pattern
-	// Matches numbers 0-255 for each octet
-	const char* pattern =
-		"^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|"
-		"[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$";
+    static ha_cfg_interface ha_cfg;
+    if (ha_cfg_get(&ha_cfg) == ESP_OK) {
+        return ha_cfg.broker_url;
+    }
 
-	// Compile regular expression
-	reti = regcomp(&regex, pattern, REG_EXTENDED);
-	if(reti)
-	{
-		ESP_LOGE(TAG, "Could not compile regex");
-		return false;
-	}
-
-	// Execute regular expression
-	reti = regexec(&regex, ip_address, 0, NULL, 0);
-	if(!reti)
-	{
-		is_valid = true;
-	}
-
-	// Free compiled regular expression
-	regfree(&regex);
-
-	return is_valid;
-}
-static bool extract_ip_from_url(const char* url, char* ip, size_t ip_size) {
-	regex_t regex;
-	regmatch_t matches[2];
-	const char* pattern = "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)";
-
-	if(regcomp(&regex, pattern, REG_EXTENDED) != 0)
-	{
-		ESP_LOGE(TAG, "Failed to compile regex");
-		return false;
-	}
-
-	if(regexec(&regex, url, 2, matches, 0) == 0)
-	{
-		size_t len = matches[1].rm_eo - matches[1].rm_so;
-		if(len < ip_size)
-		{
-			strncpy(ip, url + matches[1].rm_so, len);
-			ip[len] = '\0';
-			regfree(&regex);
-			return true;
-		}
-	}
-
-	regfree(&regex);
-	return false;
-}
-
-static void update_ip_textfield(const char* broker_url) {
-	char ip[16];
-	if(extract_ip_from_url(broker_url, ip, sizeof(ip)))
-	{
-		lv_textarea_set_text(ui_textarea_ip_0, ip);
-	}
-	else
-	{
-		ESP_LOGE(TAG, "Failed to extract IP from URL: %s", broker_url);
-		lv_textarea_set_text(ui_textarea_ip_0, "");
-	}
-}
-
-void assemble_broker_url(const char* ip_address, char* broker_url, size_t broker_url_size) {
-	const char* prefix = "mqtt://"; // MQTT Protocol prefix
-	// const char* suffix = ":1883"; // MQTT The default port
-	const char* suffix = ""; // The default port
-
-	// 组装成完整的 broker URL，确保总长度不超过目标数组的大小
-	snprintf(broker_url, broker_url_size, "%s%s%s", prefix, ip_address, suffix);
+    return NULL;
 }
 
 static void btn_event_cb(lv_event_t* e) {
@@ -120,6 +52,19 @@ static void show_message_box(const char* message, lv_color_t color) {
 	lv_obj_center(mbox);
 }
 
+static void update_ip_textfield(const char* broker_url) {
+	char ip[16];
+	if(extract_ip_from_url(broker_url, ip, sizeof(ip)))
+	{
+		lv_textarea_set_text(ui_textarea_ip_0, ip);
+	}
+	else
+	{
+		ESP_LOGE(TAG, "Failed to extract IP from URL: %s", broker_url);
+		lv_textarea_set_text(ui_textarea_ip_0, "");
+	}
+}
+
 static void handle_mqtt_addr_change(const char* new_broker_ip) {
     if (!is_valid_ipv4(new_broker_ip)) {
         ESP_LOGE(TAG, "Invalid IPv4 address: %s", new_broker_ip);
@@ -133,13 +78,11 @@ static void handle_mqtt_addr_change(const char* new_broker_ip) {
     char broker_url[MAX_BROKER_URL_LEN];
     assemble_broker_url(new_broker_ip, broker_url, sizeof(broker_url));
 
-    if (strlen(broker_url) >= sizeof(ha_cfg.broker_url)) {
+    if (strlcpy(ha_cfg.broker_url, broker_url, sizeof(ha_cfg.broker_url)) >= sizeof(ha_cfg.broker_url)) {
         ESP_LOGE(TAG, "Broker URL too long");
         show_message_box("Broker URL too long", lv_palette_main(LV_PALETTE_RED));
         return;
     }
-
-    strlcpy(ha_cfg.broker_url, broker_url, sizeof(ha_cfg.broker_url));
 
     if (ha_cfg_set(&ha_cfg) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to save broker IP");
@@ -154,47 +97,57 @@ static void handle_mqtt_addr_change(const char* new_broker_ip) {
 }
 
 static void update_switch_ui(int index, int value) {
+
     lv_obj_t* target = NULL;
     switch (index) {
         case 0: target = ui_switch1; break;
         case 1: target = ui_switch2; break;
         case 2: target = ui_switch3; break;
         case 3: target = ui_switch4; break;
-        case 4: target = ui_switch5; break;
+        case 4: target = ui_switch5_arc1; break;
         case 5: target = ui_switch6; break;
-        case 6: target = ui_switch5_arc1; break;
+        case 6: target = ui_switch7; break;
         case 7: target = ui_switch8_slider1; break;
         default: ESP_LOGW(TAG, "Invalid switch index: %d", index); return;
     }
 
-    if (index < 6) {
-        if (value) {
-            lv_obj_add_state(target, LV_STATE_CHECKED);
-        } else {
-            lv_obj_clear_state(target, LV_STATE_CHECKED);
-        }
-    } else if (index == 6) {
-        char buf[_UI_TEMPORARY_STRING_BUFFER_SIZE];
-        lv_snprintf(buf, sizeof(buf), "%d °C", value);
-        lv_label_set_text(ui_switch5_arc_data1, buf);
-        lv_arc_set_value(target, value);
-    } else if (index == 7) {
-        lv_slider_set_value(target, value, LV_ANIM_OFF);
+    if (target == NULL) {
+        ESP_LOGW(TAG, "Target object is NULL for index: %d", index);
+        return;
     }
+
+	ESP_LOGI(TAG, "update_switch_ui index:%d value: %d", index, value);
+
+	switch (index) {
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+		case 5:
+		case 6: // ui_switch7
+		{
+			if (value) {
+            	lv_obj_add_state(target, LV_STATE_CHECKED); // 按道理来说，会触发 ui_event_switch1
+			} else {
+				lv_obj_clear_state(target, LV_STATE_CHECKED);
+			}
+			break;
+		}
+		case 4: // ui_switch5_arc1
+		{
+			char buf[_UI_TEMPORARY_STRING_BUFFER_SIZE];
+			lv_snprintf(buf, sizeof(buf), "%d °C", value);
+			lv_label_set_text(ui_switch5_arc_data1, buf);
+			lv_arc_set_value(target, value);
+			break;
+		}
+		case 7: // ui_switch8_slider1
+			lv_slider_set_value(target, value, LV_ANIM_ON);
+			break;
+	}
+	lv_event_send(target, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
-static const char* get_broker_url(const void* event_data) {
-    if (event_data) {
-        return (const char*)event_data;
-    }
-
-    static ha_cfg_interface ha_cfg;
-    if (ha_cfg_get(&ha_cfg) == ESP_OK) {
-        return ha_cfg.broker_url;
-    }
-
-    return NULL;
-}
 
 static void __view_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
     lv_port_sem_take();
@@ -206,7 +159,7 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
             break;
         }
         case VIEW_EVENT_HA_ADDR_DISPLAY: {
-			const char* broker_url = get_broker_url(event_data);
+			const char* broker_url = _get_broker_url(event_data);
 			if (broker_url) {
 				update_ip_textfield(broker_url);
 			} else {
@@ -214,9 +167,9 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 			}
 			break;
         }
-        case VIEW_EVENT_HA_SWITCH_SET: {
+        case VIEW_EVENT_HA_SWITCH_SET: { // update ui
             struct view_data_ha_switch_data* p_data = (struct view_data_ha_switch_data*)event_data;
-            ESP_LOGI(TAG, "VIEW_EVENT_HA_SWITCH_SET\n switch index:%d value:%d", p_data->index, p_data->value);
+            ESP_LOGI(TAG, "VIEW_EVENT_HA_SWITCH_SET: switch index:%d value:%d\n", p_data->index, p_data->value);
             update_switch_ui(p_data->index, p_data->value);
             break;
         }
@@ -227,60 +180,6 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
 
     lv_port_sem_give();
 }
-
-// static void __view_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
-// 	lv_port_sem_take();
-
-// 	switch(id)
-// 	{
-		// case VIEW_EVENT_HA_SENSOR:
-		// {
-		// 	ESP_LOGI(TAG, "event: VIEW_EVENT_HA_SENSOR");
-		// 	struct view_data_ha_sensor_data* p_data = (struct view_data_ha_sensor_data*)event_data;
-
-		// 	switch(p_data->index)
-		// 	{
-		// 		case 0:
-		// 		{
-		// 			lv_label_set_text(ui_sensor_data_co2_2, p_data->value);
-		// 			break;
-		// 		}
-		// 		case 1:
-		// 		{
-		// 			lv_label_set_text(ui_sensor_data_temp_1, p_data->value);
-		// 			lv_label_set_text(ui_sensor_data_temp_2, p_data->value);
-		// 			break;
-		// 		}
-		// 		case 2:
-		// 		{
-		// 			lv_label_set_text(ui_sensor_data_humi_1, p_data->value);
-		// 			break;
-		// 		}
-		// 		case 3:
-		// 		{
-		// 			lv_label_set_text(ui_sensor_data_tvoc_2, p_data->value);
-		// 			break;
-		// 		}
-		// 		case 4:
-		// 		{
-		// 			lv_label_set_text(ui_sensor5_data, p_data->value);
-		// 			break;
-		// 		}
-		// 		case 5:
-		// 		{
-		// 			lv_label_set_text(ui_sensor6_data, p_data->value);
-		// 			break;
-		// 		}
-		// 		default:
-		// 			break;
-		// 	}
-		// 	break;
-		// }
-// 		default:
-// 			break;
-// 	}
-// 	lv_port_sem_give();
-// }
 
 int indicator_ha_view_init(void) {
 	// ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE,
@@ -296,3 +195,5 @@ int indicator_ha_view_init(void) {
 	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
 		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_ADDR_DISPLAY, __view_event_handler, NULL, NULL));
 }
+
+

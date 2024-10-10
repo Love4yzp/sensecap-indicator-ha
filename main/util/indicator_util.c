@@ -1,48 +1,94 @@
 #include "indicator_util.h"
-#include <arpa/inet.h>
-#include <netdb.h>
+#include <esp_system.h>
+#include <esp_log.h>
+#include <regex.h>
 
-int wifi_rssi_level_get(int rssi)
-{
+static const char* TAG = "indicator-utils";
+
+int wifi_rssi_level_get(int rssi) {
 	//    0    rssi<=-100
 	//    1    (-100, -88]
 	//    2    (-88, -77]
 	//    3    (-66, -55]
 	//    4    rssi>=-55
-    if( rssi > -66 ) {
-    	return 3;
-    } else if( rssi > -88) {
-    	return 2;
-    } else {
-    	return 1;
-    }
+	if(rssi > -66)
+	{
+		return 3;
+	}
+	else if(rssi > -88)
+	{
+		return 2;
+	}
+	else
+	{
+		return 1;
+	}
 }
 
-bool isValidIP(const char *input)
-{
-    struct in_addr  ipv4;
-    struct in6_addr ipv6;
+bool is_valid_ipv4(const char* ip_address) {
+	regex_t regex;
+	int reti;
+	bool is_valid = false;
 
-    // Try to parse input as an IPv4 address
-    if (inet_pton(AF_INET, input, &ipv4) == 1) {
-        return true; // Successfully parsed as IPv4
-    }
+	// IPv4 address pattern
+	// Matches numbers 0-255 for each octet
+	const char* pattern =
+		"^([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|"
+		"[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$";
 
-    // // Try to parse input as an IPv6 address
-    // if (inet_pton(AF_INET6, input, &ipv6) == 1) {
-    //     return true; // Successfully parsed as IPv6
-    // }
+	// Compile regular expression
+	reti = regcomp(&regex, pattern, REG_EXTENDED);
+	if(reti)
+	{
+		ESP_LOGE(TAG, "Could not compile regex");
+		return false;
+	}
 
-    return false; // Not a valid IP address
+	// Execute regular expression
+	reti = regexec(&regex, ip_address, 0, NULL, 0);
+	if(!reti)
+	{
+		is_valid = true;
+	}
+
+	// Free compiled regular expression
+	regfree(&regex);
+
+	return is_valid;
 }
 
-bool isValidDomain(const char *input)
-{
-    struct hostent *host_info = gethostbyname(input);
+bool extract_ip_from_url(const char* url, char* ip, size_t ip_size) {
+	regex_t regex;
+	regmatch_t matches[2];
+	const char* pattern = "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)";
 
-    if (host_info == NULL) {
-        return false; // Unable to resolve the domain, not a valid domain name.
-    }
+	if(regcomp(&regex, pattern, REG_EXTENDED) != 0)
+	{
+		ESP_LOGE(TAG, "Failed to compile regex");
+		return false;
+	}
 
-    return true; // Successfully resolved the domain, it's a valid domain name.
+	if(regexec(&regex, url, 2, matches, 0) == 0)
+	{
+		size_t len = matches[1].rm_eo - matches[1].rm_so;
+		if(len < ip_size)
+		{
+			strncpy(ip, url + matches[1].rm_so, len);
+			ip[len] = '\0';
+			regfree(&regex);
+			return true;
+		}
+	}
+
+	regfree(&regex);
+	return false;
+}
+
+void assemble_broker_url(const char* ip_address, char* broker_url, size_t broker_url_size) {
+	const char* prefix = "mqtt://"; // MQTT Protocol prefix
+	// const char* suffix = ":1883"; // MQTT The default port
+	const char* suffix = ""; // The default port
+
+	// 组装成完整的 broker URL，确保总长度不超过目标数组的大小
+	snprintf(broker_url, broker_url_size, "%s%s%s", prefix, ip_address, suffix);
 }

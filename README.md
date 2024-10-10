@@ -29,16 +29,15 @@ There are three demos that show how the indicator integrates with Home Assistant
 The wiki for `MQTT` method is provided: [SenseCAP Indicator - Home Assistant Application Development](https://wiki.seeedstudio.com/SenseCAP_Indicator_Application_Home_Assistant/)
 
 ### Features
+
 - [x] Wi-Fi Panel - Connect Wi-Fi via screen
 - [x] Display config - Control the intensity of the screen
-- [x] Time display - Display current time when connect to internet
 - [x] Home Assistant data - Display Sensor data
 - [x] Home Assistant control - the control widgets
 
 ### How to use example
 
-Please first read the [User Guide](https://wiki.seeedstudio.com/SenseCAP_Indicator_Get_Started) of the SenseCAP Indicator Board to learn about its software and hardware information.
-
+Please first read the [User Guide](https://wiki.seeedstudio.com/Sensor/SenseCAP/SenseCAP_Indicator/Get_started_with_SenseCAP_Indicator/) of the SenseCAP Indicator Board to learn about its software and hardware information.
 
 Here are some simple steps to use.
 
@@ -47,7 +46,6 @@ Here are some simple steps to use.
 - Step 3: Add MQTT  integration and config
 - Step 4: Modify "configuration.yaml" to add Indicator entity
 - Step 5: Edit Dashboard
-
 
 Add the following to your "configuration.yaml" file
 ```
@@ -271,4 +269,4 @@ General note: Please avoid folder-names and filenames containing non-ASCII (spec
   - VScode has an Espressif-IDF extension that should be used, installable from within VScode.
     - [Installation](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/tutorial/install.md)
     - [Basic Use](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/tutorial/basic_use.md)
-
+  
