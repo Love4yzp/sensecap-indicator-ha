@@ -27,6 +27,7 @@ void ui_screen_ha_data_screen_init(void)
     lv_obj_set_y(ui_time_ha_data, 0);
     lv_obj_set_align(ui_time_ha_data, LV_ALIGN_LEFT_MID);
     lv_label_set_text(ui_time_ha_data, "21:20");
+    lv_obj_add_flag(ui_time_ha_data, LV_OBJ_FLAG_HIDDEN);     /// Flags
     lv_obj_set_style_text_font(ui_time_ha_data, &ui_font_font0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_screen_home_data_label1 = lv_label_create(ui_panel_top_1);
@@ -93,7 +94,7 @@ void ui_screen_ha_data_screen_init(void)
     lv_obj_set_height(ui_sensor_data_temp_2, LV_SIZE_CONTENT);    /// 2
     lv_obj_set_x(ui_sensor_data_temp_2, 11);
     lv_obj_set_y(ui_sensor_data_temp_2, 79);
-    lv_label_set_text(ui_sensor_data_temp_2, "24.5");
+    lv_label_set_text(ui_sensor_data_temp_2, "N/A");
     lv_obj_set_style_text_color(ui_sensor_data_temp_2, lv_color_hex(0xECBF41), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_sensor_data_temp_2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_sensor_data_temp_2, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -145,7 +146,7 @@ void ui_screen_ha_data_screen_init(void)
     lv_obj_set_height(ui_sensor_data_humi_2, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_sensor_data_humi_2, 16);
     lv_obj_set_y(ui_sensor_data_humi_2, 83);
-    lv_label_set_text(ui_sensor_data_humi_2, "24.5");
+    lv_label_set_text(ui_sensor_data_humi_2, "N/A");
     lv_obj_set_style_text_color(ui_sensor_data_humi_2, lv_color_hex(0x52AAE5), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_sensor_data_humi_2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_sensor_data_humi_2, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -197,7 +198,7 @@ void ui_screen_ha_data_screen_init(void)
     lv_obj_set_height(ui_sensor_data_tvoc_2, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_sensor_data_tvoc_2, 11);
     lv_obj_set_y(ui_sensor_data_tvoc_2, 83);
-    lv_label_set_text(ui_sensor_data_tvoc_2, "24.5");
+    lv_label_set_text(ui_sensor_data_tvoc_2, "N/A");
     lv_obj_set_style_text_color(ui_sensor_data_tvoc_2, lv_color_hex(0xD76D46), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_sensor_data_tvoc_2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_sensor_data_tvoc_2, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -250,7 +251,7 @@ void ui_screen_ha_data_screen_init(void)
     lv_obj_set_height(ui_sensor_data_co2_2, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_sensor_data_co2_2, 13);
     lv_obj_set_y(ui_sensor_data_co2_2, 84);
-    lv_label_set_text(ui_sensor_data_co2_2, "24.5");
+    lv_label_set_text(ui_sensor_data_co2_2, "N/A");
     lv_obj_set_style_text_color(ui_sensor_data_co2_2, lv_color_hex(0x4F9E52), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_sensor_data_co2_2, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_align(ui_sensor_data_co2_2, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN | LV_STATE_DEFAULT);

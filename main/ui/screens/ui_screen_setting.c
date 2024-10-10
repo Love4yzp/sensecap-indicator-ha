@@ -27,6 +27,7 @@ void ui_screen_setting_screen_init(void)
     lv_obj_set_y(ui_time_ha_data3, 0);
     lv_obj_set_align(ui_time_ha_data3, LV_ALIGN_LEFT_MID);
     lv_label_set_text(ui_time_ha_data3, "21:20");
+    lv_obj_add_flag(ui_time_ha_data3, LV_OBJ_FLAG_HIDDEN);     /// Flags
     lv_obj_set_style_text_font(ui_time_ha_data3, &ui_font_font0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_wifi__st_button_ha_setting = lv_btn_create(ui_panel_top_4);

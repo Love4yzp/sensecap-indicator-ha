@@ -901,7 +901,7 @@
                   {
                     "nid": -1617066659,
                     "strtype": "LABEL/Text",
-                    "strval": "24.5",
+                    "strval": "N/A",
                     "InheritedType": 10
                   },
                   {
@@ -2459,7 +2459,7 @@
                   {
                     "nid": -1419940026,
                     "strtype": "LABEL/Text",
-                    "strval": "24.5",
+                    "strval": "N/A",
                     "InheritedType": 10
                   },
                   {
@@ -6603,7 +6603,7 @@
                   {
                     "nid": 1320898421,
                     "strtype": "OBJECT/Hidden",
-                    "strval": "False",
+                    "strval": "True",
                     "InheritedType": 2
                   },
                   {
@@ -8601,7 +8601,7 @@
                   {
                     "nid": 1172141302,
                     "strtype": "OBJECT/Hidden",
-                    "strval": "False",
+                    "strval": "True",
                     "InheritedType": 2
                   },
                   {
@@ -11043,7 +11043,7 @@
                   {
                     "nid": -1358750794,
                     "strtype": "LABEL/Text",
-                    "strval": "24.5",
+                    "strval": "N/A",
                     "InheritedType": 10
                   },
                   {
@@ -12601,7 +12601,7 @@
                   {
                     "nid": 1797394590,
                     "strtype": "LABEL/Text",
-                    "strval": "24.5",
+                    "strval": "N/A",
                     "InheritedType": 10
                   },
                   {
@@ -14158,7 +14158,7 @@
                   {
                     "nid": 657096247,
                     "strtype": "LABEL/Text",
-                    "strval": "24.5",
+                    "strval": "N/A",
                     "InheritedType": 10
                   },
                   {
@@ -15715,7 +15715,7 @@
                   {
                     "nid": 1237034178,
                     "strtype": "LABEL/Text",
-                    "strval": "24.5",
+                    "strval": "N/A",
                     "InheritedType": 10
                   },
                   {
@@ -22696,7 +22696,7 @@
                   {
                     "nid": -396885151,
                     "strtype": "OBJECT/Hidden",
-                    "strval": "False",
+                    "strval": "True",
                     "InheritedType": 2
                   },
                   {
@@ -24693,7 +24693,7 @@
                   {
                     "nid": 440309879,
                     "strtype": "OBJECT/Hidden",
-                    "strval": "False",
+                    "strval": "True",
                     "InheritedType": 2
                   },
                   {
@@ -42456,7 +42456,7 @@
                   {
                     "disabled": false,
                     "nid": 1556832320,
-                    "strtype": "BUTTON/EventHandler",
+                    "strtype": "_event/EventHandler",
                     "strval": "PRESSED",
                     "childs": [
                       {
@@ -43765,7 +43765,7 @@
     "theme_color2": 0,
     "uiExportFolderPath": "D:\\Dev\\sensecap-indicator-ha\\main\\ui",
     "projectExportFolderPath": "D:\\Dev\\sensecap-indicator-ha",
-    "backup_cnt": 191,
+    "backup_cnt": 193,
     "autosave_cnt": 0,
     "lvgl_version": "8.3.11",
     "callfuncsexport": "C_FILE",
