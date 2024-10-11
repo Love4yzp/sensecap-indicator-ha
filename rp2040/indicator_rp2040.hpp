@@ -34,21 +34,6 @@ enum pkt_type {
     // SHT41 AHT
     PKT_TYPE_SENSOR_SHT41_TEMP     = 0xB4,
     PKT_TYPE_SENSOR_SHT41_HUMIDITY = 0xB5,  // float
-
-    // SEN5x
-    PKT_TYPE_SENSOR_SEN5X_massConcentrationPm1p0  = 0xB6,
-    PKT_TYPE_SENSOR_SEN5X_massConcentrationPm2p5  = 0xB7,
-    PKT_TYPE_SENSOR_SEN5X_massConcentrationPm4p0  = 0xB8,
-    PKT_TYPE_SENSOR_SEN5X_massConcentrationPm10p0 = 0xB9,
-    PKT_TYPE_SENSOR_SEN5X_ambientHumidity         = 0xBA,
-    PKT_TYPE_SENSOR_SEN5X_ambientTemperature      = 0xBB,
-    PKT_TYPE_SENSOR_SEN5X_vocIndex                = 0xBC,
-    PKT_TYPE_SENSOR_SEN5X_noxIndex                = 0xBD,
-
-    // SFA3X
-    PKT_TYPE_SENSOR_SFA3X_HCHO     = 0xBE,
-    PKT_TYPE_SENSOR_SFA3X_HUMIDITY = 0xBF,
-    PKT_TYPE_SENSOR_SFA3X_TEMP     = 0xC0,
 };
 
 void sensor_data_send(PacketSerial& _PacketSerial, enum pkt_type type, float data);
@@ -70,22 +55,6 @@ typedef struct {
     float    temperature;
 } SCD4XData;
 
-typedef struct {
-    float hcho;
-    float humidity;
-    float temperature;
-} SFA3XData;
-
-typedef struct {
-    float massConcentrationPm1p0;
-    float massConcentrationPm2p5;
-    float massConcentrationPm4p0;
-    float massConcentrationPm10p0;
-    float ambientHumidity;
-    float ambientTemperature;
-    float vocIndex;
-    float noxIndex;
-} Sen5xData;
 
 /************************ aht  temp & humidity ****************************/
 
@@ -103,17 +72,6 @@ void sensor_sgp40_print(const SPG40Data& data);
 void sensor_scd4x_init(void);
 bool sensor_scd4x_get(SCD4XData& data);
 void sensor_scd4x_print(const SCD4XData& data);
-
-/*********************** sfa3x ****************************/
-void sensor_sfa3x_init(void);
-bool sensor_sfa3x_get(SFA3XData& data);
-void sensor_sfa3x_print(const SFA3XData& data);
-
-/************************ SEN5X ****************************/
-void sensor_sen5x_init(float tempOffset);
-bool sensor_sen5x_get(Sen5xData& data);
-void SEN5xPrintError(const char* operation, uint16_t error);
-void sensor_sen5x_print(const Sen5xData& data);
 
 /************************ grove  ****************************/
 void grove_adc_get(void);  // todo
