@@ -8,12 +8,10 @@
  * @copyright Copyright (c) 2024
  * 
  */
-#include <SensirionI2CScd4x.h>
-#include <SensirionI2CSen5x.h>
-#include <SensirionI2CSfa3x.h>
-#include <SensirionI2CSgp40.h>
-#include <VOCGasIndexAlgorithm.h>
 #include "AHT20.h"
+#include <SensirionI2CSgp40.h>
+#include <SensirionI2CScd4x.h>
+#include <VOCGasIndexAlgorithm.h>
 #include "indicator_rp2040.hpp"
 
 /************************ instance  ****************************/

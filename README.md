@@ -22,6 +22,7 @@ There are three demos that show how the indicator integrates with Home Assistant
     <img align="center" src="./assets/Home Assistant.png" width="240"/>
     <img align="left" src="./assets/Home Assistant Control(ON).png" width="240"/>
     <img align="center" src="./assets/Home Assistant Control(OFF).png" width="240"/>
+    <img align="center" src="./assets/mqtt-address-panel.png" width="240"/>
 </figure>
 
 ## MQTT
