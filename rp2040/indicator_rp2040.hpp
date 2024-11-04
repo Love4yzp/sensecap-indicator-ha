@@ -28,12 +28,12 @@ enum pkt_type {
     // PKT_TYPE_SENSOR_SCD41_HUMIDITY = 0xB1,
     PKT_TYPE_SENSOR_SCD41_CO2 = 0xB2,  // float
 
-    // Inner Sensor SGP40
-    PKT_TYPE_SENSOR_SGP40_TVOC_INDEX = 0xB3,  // float
-
     // SHT41 AHT
-    PKT_TYPE_SENSOR_SHT41_TEMP     = 0xB4,
-    PKT_TYPE_SENSOR_SHT41_HUMIDITY = 0xB5,  // float
+    PKT_TYPE_SENSOR_SHT41_TEMP     = 0xB3,
+    PKT_TYPE_SENSOR_SHT41_HUMIDITY = 0xB4,  // float
+    
+    // Inner Sensor SGP40
+    PKT_TYPE_SENSOR_SGP40_TVOC_INDEX = 0xB5,  // float
 };
 
 void sensor_data_send(PacketSerial& _PacketSerial, enum pkt_type type, float data);
