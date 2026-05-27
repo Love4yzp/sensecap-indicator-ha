@@ -44,7 +44,7 @@ static void processData(SensorData* sensor, const float data) {
  * @return SENSOR_OK on success, otherwise an error code.
  */
 int UpdateSensorData(const enum sensor_data_type type, uint8_t* p_data) {
-	if(p_data == NULL && type >= ENUM_SENSOR_ALL)
+	if(p_data == NULL || type >= ENUM_SENSOR_ALL)
 	{
 		return SENSOR_ERR_INVALID_TYPE;
 	}

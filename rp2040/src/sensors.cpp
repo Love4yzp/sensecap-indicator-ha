@@ -9,15 +9,19 @@
  * 
  */
 #include "AHT20.h"
+#include <math.h>
 #include <SensirionI2CSgp40.h>
-#include <SensirionI2CScd4x.h>
+#include <SensirionI2cScd4x.h>
+#include <string.h>
 #include <VOCGasIndexAlgorithm.h>
 #include "indicator_rp2040.hpp"
 
 /************************ instance  ****************************/
 AHT20             AHT;    // grove-sensor: humi & temp
 SensirionI2CSgp40 sgp40;  // tvoc
-SensirionI2CScd4x scd4x;  // co2
+SensirionI2cScd4x scd4x;  // co2
+
+static uint8_t sht41_address = 0x00;
 
 /************************ Sensor Power ****************************/
 // The built-in sensor needs to be powered on
@@ -47,6 +51,15 @@ void grove_adc_get(void)
 }
 
 /********************* sensor data send to  esp32 ***********************/
+static uint8_t sensor_packet_checksum(const uint8_t* data, size_t len)
+{
+    uint8_t checksum = 0;
+    for (size_t i = 0; i < len; i++) {
+        checksum ^= data[i];
+    }
+    return checksum;
+}
+
 void sensor_data_send(PacketSerial& packetSerial, pkt_type type, float data)
 {
     uint8_t data_buf[32];
@@ -72,6 +85,54 @@ void sensor_data_send(PacketSerial& packetSerial, pkt_type type, float data)
 #endif
 }
 
+void sensor_attached_send(PacketSerial& packetSerial, uint8_t id, uint8_t category, const char* name, const char* unit)
+{
+    uint8_t name_len = static_cast<uint8_t>(strlen(name));
+    uint8_t unit_len = static_cast<uint8_t>(strlen(unit));
+    if (name_len > 15) {
+        name_len = 15;
+    }
+    if (unit_len > 7) {
+        unit_len = 7;
+    }
+
+    uint8_t data_buf[5 + 16 + 8] = {0};
+    size_t  offset               = 0;
+    data_buf[offset++]           = static_cast<uint8_t>(PKT_TYPE_SENSOR_ATTACHED);
+    data_buf[offset++]           = id;
+    data_buf[offset++]           = category;
+    data_buf[offset++]           = name_len;
+    memcpy(&data_buf[offset], name, name_len);
+    offset += name_len;
+    data_buf[offset++] = unit_len;
+    memcpy(&data_buf[offset], unit, unit_len);
+    offset += unit_len;
+    data_buf[offset++] = sensor_packet_checksum(data_buf, offset);
+
+    packetSerial.send(data_buf, offset);
+}
+
+void sensor_detached_send(PacketSerial& packetSerial, uint8_t id)
+{
+    uint8_t data_buf[3] = {
+        static_cast<uint8_t>(PKT_TYPE_SENSOR_DETACHED),
+        id,
+        0,
+    };
+    data_buf[2] = sensor_packet_checksum(data_buf, 2);
+    packetSerial.send(data_buf, sizeof(data_buf));
+}
+
+void sensor_value_send(PacketSerial& packetSerial, uint8_t id, float data)
+{
+    uint8_t data_buf[7] = {0};
+    data_buf[0]         = static_cast<uint8_t>(PKT_TYPE_SENSOR_VALUE);
+    data_buf[1]         = id;
+    memcpy(&data_buf[2], &data, sizeof(float));
+    data_buf[6] = sensor_packet_checksum(data_buf, 6);
+    packetSerial.send(data_buf, sizeof(data_buf));
+}
+
 /************************ aht  temp & humidity ****************************/
 
 void sensor_aht_init(void)
@@ -81,13 +142,97 @@ void sensor_aht_init(void)
 
 bool sensor_aht_get(AHTData& data)
 {
-    float humi, temp;
-    int   ret        = AHT.getSensor(&humi, &temp);
-    data.humidity    = humi * 100;
-    data.temperature = temp;
-    if (ret == 0) {  // GET DATA FAIL
+    data.humidity    = AHT.getHumidity();
+    data.temperature = AHT.getTemperature();
+    if (isnan(data.humidity) || isnan(data.temperature)) {
         Serial.println("GET DATA FROM AHT20 FAIL");
         return false;
+    }
+    return true;
+}
+
+static uint8_t sht41_crc8(const uint8_t* data, size_t len)
+{
+    uint8_t crc = 0xFF;
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (uint8_t bit = 0; bit < 8; bit++) {
+            crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0x31) : (uint8_t)(crc << 1);
+        }
+    }
+    return crc;
+}
+
+static bool sht41_probe_address(uint8_t address)
+{
+    Wire.beginTransmission(address);
+    Wire.write(0x89);  // read serial number
+    if (Wire.endTransmission() != 0) {
+        return false;
+    }
+    delay(1);
+    if (Wire.requestFrom(address, (uint8_t)6) != 6) {
+        return false;
+    }
+    uint8_t data[6];
+    for (uint8_t i = 0; i < sizeof(data); i++) {
+        data[i] = Wire.read();
+    }
+    return sht41_crc8(&data[0], 2) == data[2] && sht41_crc8(&data[3], 2) == data[5];
+}
+
+bool sensor_sht41_init(void)
+{
+    const uint8_t addresses[] = {0x44, 0x45, 0x46};
+    sht41_address = 0x00;
+    for (uint8_t i = 0; i < sizeof(addresses); i++) {
+        if (sht41_probe_address(addresses[i])) {
+            sht41_address = addresses[i];
+            Wire.beginTransmission(sht41_address);
+            Wire.write(0x94);  // soft reset
+            Wire.endTransmission();
+            delay(2);
+            Serial.printf("SHT41 found at 0x%02X\n", sht41_address);
+            return true;
+        }
+    }
+    Serial.println("SHT41 not found");
+    return false;
+}
+
+bool sensor_sht41_get(AHTData& data)
+{
+    if (sht41_address == 0x00) {
+        return false;
+    }
+
+    Wire.beginTransmission(sht41_address);
+    Wire.write(0xFD);  // high precision measurement
+    if (Wire.endTransmission() != 0) {
+        return false;
+    }
+    delay(36);
+
+    if (Wire.requestFrom(sht41_address, (uint8_t)6) != 6) {
+        return false;
+    }
+    uint8_t raw[6];
+    for (uint8_t i = 0; i < sizeof(raw); i++) {
+        raw[i] = Wire.read();
+    }
+    if (sht41_crc8(&raw[0], 2) != raw[2] || sht41_crc8(&raw[3], 2) != raw[5]) {
+        return false;
+    }
+
+    uint16_t raw_temp = ((uint16_t)raw[0] << 8) | raw[1];
+    uint16_t raw_humi = ((uint16_t)raw[3] << 8) | raw[4];
+    data.temperature = -45.0f + 175.0f * ((float)raw_temp / 65535.0f);
+    data.humidity    = -6.0f + 125.0f * ((float)raw_humi / 65535.0f);
+    if (data.humidity < 0.0f) {
+        data.humidity = 0.0f;
+    }
+    if (data.humidity > 100.0f) {
+        data.humidity = 100.0f;
     }
     return true;
 }
@@ -206,7 +351,7 @@ void sensor_scd4x_init(void)
     uint16_t error;
     char     errorMessage[256];
 
-    scd4x.begin(Wire);
+    scd4x.begin(Wire, 0x62);
 
     // stop potentially previously started measurement
     error = scd4x.stopPeriodicMeasurement();
@@ -216,16 +361,15 @@ void sensor_scd4x_init(void)
         Serial.println(errorMessage);
     }
 
-    uint16_t serial0;
-    uint16_t serial1;
-    uint16_t serial2;
-    error = scd4x.getSerialNumber(serial0, serial1, serial2);
+    uint64_t serialNumber;
+    error = scd4x.getSerialNumber(serialNumber);
     if (error) {
         Serial.print("Error trying to execute getSerialNumber(): ");
         errorToString(error, errorMessage, 256);
         Serial.println(errorMessage);
     } else {
-        printSerialNumber(serial0, serial1, serial2);
+        Serial.print("Serial: 0x");
+        Serial.println(static_cast<unsigned long long>(serialNumber), HEX);
     }
 
     // Start Measurement

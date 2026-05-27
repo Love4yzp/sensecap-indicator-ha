@@ -96,3 +96,6 @@ sdkconfig
 sdkconfig.old
 dependencies.lock
 build
+
+# PlatformIO
+.pio/

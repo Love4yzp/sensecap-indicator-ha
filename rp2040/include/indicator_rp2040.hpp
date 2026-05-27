@@ -20,8 +20,10 @@ enum pkt_type {
     PKT_TYPE_NONE                 = 0,
     PKT_TYPE_CMD_COLLECT_INTERVAL = 0xA0,  // uin32_t
     PKT_TYPE_CMD_BEEP_ON          = 0xA1,  // uin32_t  ms: on time
+    PKT_TYPE_CMD_BEEP_OFF         = 0xA2,
     PKT_TYPE_CMD_SHUTDOWN         = 0xA3,
     PKT_TYPE_CMD_POWER_ON         = 0xA4,
+    PKT_TYPE_CMD_RESCAN_GROVE     = 0xA5,
 
     // Inner Sensor
     // PKT_TYPE_SENSOR_SCD41_TEMP      = 0xB0, // not accurate
@@ -34,9 +36,35 @@ enum pkt_type {
     
     // Inner Sensor SGP40
     PKT_TYPE_SENSOR_SGP40_TVOC_INDEX = 0xB5,  // float
+
+    // Dynamic sensor registry packets
+    PKT_TYPE_SENSOR_ATTACHED = 0xB8,
+    PKT_TYPE_SENSOR_DETACHED = 0xB9,
+    PKT_TYPE_SENSOR_VALUE    = 0xBA,
 };
 
+#define PKT_SENSOR_ID_AHT20_TEMP 0
+#define PKT_SENSOR_ID_AHT20_HUMIDITY 1
+#define PKT_SENSOR_ID_SCD41_CO2 2
+#define PKT_SENSOR_ID_SGP40_VOC 3
+#define PKT_SENSOR_ID_SCD41_TEMP 4
+#define PKT_SENSOR_ID_SCD41_HUMIDITY 5
+#define PKT_SENSOR_ID_GROVE_BASE 0x10
+
+#define PKT_SENSOR_CAT_TEMP 0
+#define PKT_SENSOR_CAT_HUMIDITY 1
+#define PKT_SENSOR_CAT_CO2 2
+#define PKT_SENSOR_CAT_VOC 3
+#define PKT_SENSOR_CAT_LIGHT 4
+#define PKT_SENSOR_CAT_PRESSURE 5
+#define PKT_SENSOR_CAT_PM 6
+#define PKT_SENSOR_CAT_NOX 7
+#define PKT_SENSOR_CAT_UNKNOWN 255
+
 void sensor_data_send(PacketSerial& _PacketSerial, enum pkt_type type, float data);
+void sensor_attached_send(PacketSerial& packetSerial, uint8_t id, uint8_t category, const char* name, const char* unit);
+void sensor_detached_send(PacketSerial& packetSerial, uint8_t id);
+void sensor_value_send(PacketSerial& packetSerial, uint8_t id, float data);
 
 // Sensors
 typedef struct {
@@ -61,6 +89,8 @@ typedef struct {
 void sensor_aht_init(void);
 bool sensor_aht_get(AHTData& data);
 void sensor_aht_print(const AHTData& data);
+bool sensor_sht41_init(void);
+bool sensor_sht41_get(AHTData& data);
 /************************ sgp40 tvoc  ****************************/
 
 void sensor_sgp40_init(void);

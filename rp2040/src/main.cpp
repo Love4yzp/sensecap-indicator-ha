@@ -19,6 +19,8 @@ https://files.seeedstudio.com/wiki/SenseCAP/SenseCAP_Indicator/grove.png
 
 PacketSerial packetSerial;
 
+static bool has_sht41 = false;
+
 /************************ recv cmd from esp32  ****************************/
 
 /**
@@ -44,8 +46,22 @@ void onPacketReceived(const uint8_t* buffer, size_t size)
             sensor_power_off();
             break;
         }
+        case PKT_TYPE_CMD_POWER_ON:
+            Serial.println("cmd power on");
+            sensor_power_on();
+            sensor_aht_init();
+            has_sht41 = sensor_sht41_init();
+            sensor_sgp40_init();
+            sensor_scd4x_init();
+            break;
         case PKT_TYPE_CMD_BEEP_ON:
             beep_on();
+            break;
+        case PKT_TYPE_CMD_BEEP_OFF:
+            beep_off();
+            break;
+        case PKT_TYPE_CMD_RESCAN_GROVE:
+            Serial.println("cmd rescan grove: no dynamic Grove scanner in this firmware yet");
             break;
         default:
             break;
@@ -80,8 +96,18 @@ void setup()
     // beep_on();
 
     sensor_aht_init();
+    has_sht41 = sensor_sht41_init();
     sensor_sgp40_init();
     sensor_scd4x_init();
+
+    sensor_attached_send(packetSerial, PKT_SENSOR_ID_AHT20_TEMP, PKT_SENSOR_CAT_TEMP, "AHT20", "C");
+    sensor_attached_send(packetSerial, PKT_SENSOR_ID_AHT20_HUMIDITY, PKT_SENSOR_CAT_HUMIDITY, "AHT20", "%RH");
+    if (has_sht41) {
+        sensor_attached_send(packetSerial, PKT_SENSOR_ID_GROVE_BASE, PKT_SENSOR_CAT_TEMP, "SHT41", "C");
+        sensor_attached_send(packetSerial, PKT_SENSOR_ID_GROVE_BASE + 1, PKT_SENSOR_CAT_HUMIDITY, "SHT41", "%RH");
+    }
+    sensor_attached_send(packetSerial, PKT_SENSOR_ID_SCD41_CO2, PKT_SENSOR_CAT_CO2, "SCD41", "ppm");
+    sensor_attached_send(packetSerial, PKT_SENSOR_ID_SGP40_VOC, PKT_SENSOR_CAT_VOC, "SGP40", "idx");
 }
 
 /*************************** delay *****************************/
@@ -129,6 +155,7 @@ void loop()
         float co2 = calibrateSensor(static_cast<float>(data_scd.co2));
         sensor_data_send(packetSerial, PKT_TYPE_SENSOR_SCD41_CO2,
                          co2);  // uint16_t to float
+        sensor_value_send(packetSerial, PKT_SENSOR_ID_SCD41_CO2, co2);
     }
 
 // Temporarily use SPG40 to get the compensation data
@@ -144,18 +171,37 @@ void loop()
         // get the vocIndex from SPG40
         float voxIndex = calibrateSensor(static_cast<float>(data_spg.vocIndex));
         sensor_data_send(packetSerial, PKT_TYPE_SENSOR_SGP40_TVOC_INDEX, voxIndex);
+        sensor_value_send(packetSerial, PKT_SENSOR_ID_SGP40_VOC, voxIndex);
     }
 
-    if (aht_delay.check() && sensor_aht_get(data_aht)) {  // External Sensor
-        sensor_aht_print(data_aht);
+    if (aht_delay.check()) {
+        if (!has_sht41) {
+            has_sht41 = sensor_sht41_init();
+            if (has_sht41) {
+                sensor_attached_send(packetSerial, PKT_SENSOR_ID_GROVE_BASE, PKT_SENSOR_CAT_TEMP, "SHT41", "C");
+                sensor_attached_send(packetSerial, PKT_SENSOR_ID_GROVE_BASE + 1, PKT_SENSOR_CAT_HUMIDITY, "SHT41", "%RH");
+            }
+        }
+        bool used_sht41 = has_sht41 && sensor_sht41_get(data_aht);
+        if (!(used_sht41 || sensor_aht_get(data_aht))) {
+            return;
+        }
+        if (used_sht41) {
+            Serial.printf("SHT41: humidity: %.2f %% \t temperature: %.2f\n", data_aht.humidity, data_aht.temperature);
+        } else {
+            Serial.print("AHT20 fallback - ");
+            sensor_aht_print(data_aht);
+        }
 
         // get the *calibration* data
         float humidity = calibrateSensor(static_cast<float>(data_aht.humidity), 1, 0.0);  // humidity = 1 * raw_humidity + 0
         sensor_data_send(packetSerial, PKT_TYPE_SENSOR_SHT41_HUMIDITY, humidity);  // send the humidity to ESP32
+        sensor_value_send(packetSerial, has_sht41 ? PKT_SENSOR_ID_GROVE_BASE + 1 : PKT_SENSOR_ID_AHT20_HUMIDITY, humidity);
 
         // get the temperature from ATH
         float temperature = calibrateSensor(static_cast<float>(data_aht.temperature));
         sensor_data_send(packetSerial, PKT_TYPE_SENSOR_SHT41_TEMP, temperature);
+        sensor_value_send(packetSerial, has_sht41 ? PKT_SENSOR_ID_GROVE_BASE : PKT_SENSOR_ID_AHT20_TEMP, temperature);
 
 #if USING_AHT_COMPENSATION
         SPG4x_compensationRh = static_cast<uint16_t>(data_aht.humidity * 65535 / 100);

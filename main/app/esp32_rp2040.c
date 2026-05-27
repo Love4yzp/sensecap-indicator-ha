@@ -38,6 +38,7 @@ uint8_t data[BUF_SIZE]; // decode
  */
 __attribute__((weak)) int __sensor_data_parse_handle(uint8_t* p_data, size_t len) {
 	ESP_LOGI(TAG, "__sensor_data_parse_handle, please import the code from indicator_sensor_model");
+	return -1;
 }
 
 /**
@@ -49,7 +50,7 @@ __attribute__((weak)) int __sensor_data_parse_handle(uint8_t* p_data, size_t len
  * @return int
  */
 static int __cmd_send(uint8_t cmd, void* p_data, uint8_t len) {
-	uint8_t buf[32] = {0};
+	uint8_t buf[40] = {0};
 	uint8_t data[32] = {0};
 
 	if(len > 31)
@@ -67,7 +68,7 @@ static int __cmd_send(uint8_t cmd, void* p_data, uint8_t len) {
 		index += len;
 	}
 	cobs_encode_result ret = cobs_encode(buf, sizeof(buf), data, index);
-#if 1 // SENSOR_COMM_DEBUG
+#if SENSOR_COMM_DEBUG
 	ESP_LOGI(TAG, "encode status:%d, len:%d", ret.status, ret.out_len);
 	for(int i = 0; i < ret.out_len; i++)
 	{
@@ -78,9 +79,86 @@ static int __cmd_send(uint8_t cmd, void* p_data, uint8_t len) {
 
 	if(ret.status == COBS_ENCODE_OK)
 	{
+		buf[ret.out_len] = 0x00;
 		return uart_write_bytes(ESP32_COMM_PORT_NUM, buf, ret.out_len + 1);
 	}
 	return -1;
+}
+
+static bool __verify_xor_checksum(const uint8_t* p_data, size_t len) {
+	if(len < 2)
+	{
+		return false;
+	}
+
+	uint8_t checksum = 0;
+	for(size_t i = 0; i < len - 1; i++)
+	{
+		checksum ^= p_data[i];
+	}
+	return checksum == p_data[len - 1];
+}
+
+static bool __dynamic_sensor_packet_is_valid(const uint8_t* p_data, size_t len) {
+	if(len < 2 || !__verify_xor_checksum(p_data, len))
+	{
+		return false;
+	}
+
+	switch(p_data[0])
+	{
+		case PKT_TYPE_SENSOR_ATTACHED: {
+			if(len < 5)
+			{
+				return false;
+			}
+			uint8_t name_len = p_data[3];
+			size_t unit_len_offset = 4U + name_len;
+			if(unit_len_offset >= len - 1)
+			{
+				return false;
+			}
+			uint8_t unit_len = p_data[unit_len_offset];
+			return unit_len_offset + 1U + unit_len == len - 1;
+		}
+		case PKT_TYPE_SENSOR_DETACHED:
+			return len == 3;
+		case PKT_TYPE_SENSOR_VALUE:
+			return len == 7;
+		default:
+			return false;
+	}
+}
+
+static bool __packet_handle(uint8_t* p_data, size_t len) {
+	if(len < 1)
+	{
+		return false;
+	}
+
+	switch(p_data[0])
+	{
+		case PKT_TYPE_SENSOR_ATTACHED:
+		case PKT_TYPE_SENSOR_DETACHED:
+		case PKT_TYPE_SENSOR_VALUE:
+			if(!__dynamic_sensor_packet_is_valid(p_data, len))
+			{
+				ESP_LOGW(TAG, "drop malformed dynamic sensor packet type=0x%x len=%d", p_data[0],
+						 (int)len);
+				return false;
+			}
+			ESP_LOGD(TAG, "dynamic sensor packet type=0x%x len=%d", p_data[0], (int)len);
+			return true;
+		default:
+			if(len > 1)
+			{
+				__sensor_data_parse_handle((uint8_t*)p_data, len);
+				return true;
+			}
+			break;
+	}
+
+	return false;
 }
 
 static void esp32_rp2040_comm_task(void* arg) {
@@ -100,19 +178,17 @@ static void esp32_rp2040_comm_task(void* arg) {
 	ESP_ERROR_CHECK(uart_set_pin(ESP32_COMM_PORT_NUM, ESP32_RP2040_TXD, ESP32_RP2040_RXD,
 								 ESP32_RP2040_RTS, ESP32_RP2040_CTS));
 
-	// __cmd_send(PKT_TYPE_CMD_POWER_ON, NULL, 0);
-	__cmd_send(PKT_TYPE_CMD_BEEP_ON, NULL, 0);
+	__cmd_send(PKT_TYPE_CMD_POWER_ON, NULL, 0);
 	cobs_decode_result ret;
+	uint8_t frag[BUF_SIZE] = {0};
+	size_t frag_len = 0;
 
 	while(1)
 	{
-		int len = uart_read_bytes(ESP32_COMM_PORT_NUM, buf, (BUF_SIZE - 1), 1 / portTICK_PERIOD_MS);
+		int len = uart_read_bytes(ESP32_COMM_PORT_NUM, buf, (BUF_SIZE - 1), pdMS_TO_TICKS(20));
 #if SENSOR_COMM_DEBUG
 		ESP_LOGI(TAG, "len:%d", len);
 #endif
-		int index = 0;
-		uint8_t* p_buf_start = buf;
-		uint8_t* p_buf_end = buf;
 		if(len > 0)
 		{
 #if SENSOR_COMM_DEBUG
@@ -123,10 +199,12 @@ static void esp32_rp2040_comm_task(void* arg) {
 			}
 			printf("\r\n");
 #endif
-			while(p_buf_start < (buf + len))
+			uint8_t* p_buf_start = buf;
+			uint8_t* p_buf_stop = buf + len;
+			while(p_buf_start < p_buf_stop)
 			{
 				uint8_t* p_buf_end = p_buf_start;
-				while(p_buf_end < (buf + len))
+				while(p_buf_end < p_buf_stop)
 				{
 					if(*p_buf_end == 0x00)
 					{
@@ -134,27 +212,49 @@ static void esp32_rp2040_comm_task(void* arg) {
 					}
 					p_buf_end++;
 				}
-				// decode buf
-				memset(data, 0, sizeof(data));
-				ret = cobs_decode(data, sizeof(data), p_buf_start, p_buf_end - p_buf_start);
+
+				size_t chunk_len = p_buf_end - p_buf_start;
+				if(chunk_len > 0)
+				{
+					if(frag_len + chunk_len > sizeof(frag))
+					{
+						ESP_LOGW(TAG, "drop oversized COBS fragment len=%u",
+								 (unsigned)(frag_len + chunk_len));
+						frag_len = 0;
+					}
+					if(frag_len + chunk_len <= sizeof(frag))
+					{
+						memcpy(frag + frag_len, p_buf_start, chunk_len);
+						frag_len += chunk_len;
+					}
+				}
+
+				if(p_buf_end < p_buf_stop && *p_buf_end == 0x00)
+				{
+					if(frag_len > 0)
+					{
+						memset(data, 0, sizeof(data));
+						ret = cobs_decode(data, sizeof(data), frag, frag_len);
 
 #if SENSOR_COMM_DEBUG
-				ESP_LOGI(TAG, "decode status:%d, len:%d, type:0x%x  ", ret.status, ret.out_len,
-						 data[0]);
-				printf("decode: ");
-				for(int i = 0; i < ret.out_len; i++)
-				{
-					printf("0x%x ", data[i]);
-				}
-				printf("\r\n");
+						ESP_LOGI(TAG, "decode status:%d, len:%d, type:0x%x  ", ret.status,
+								 ret.out_len, data[0]);
+						printf("decode: ");
+						for(int i = 0; i < ret.out_len; i++)
+						{
+							printf("0x%x ", data[i]);
+						}
+						printf("\r\n");
 #endif
-				if(ret.out_len > 1 && ret.status == COBS_DECODE_OK)
-				{
-					// todo  ret.status
-					__sensor_data_parse_handle((uint8_t*)data, ret.out_len); // parse data HERE
+						if(ret.status == COBS_DECODE_OK)
+						{
+							__packet_handle((uint8_t*)data, ret.out_len);
+						}
+					}
+					frag_len = 0;
 				}
 
-				p_buf_start = p_buf_end + 1; // next message
+				p_buf_start = (p_buf_end < p_buf_stop) ? (p_buf_end + 1) : p_buf_stop; // next message
 			}
 		}
 	}
