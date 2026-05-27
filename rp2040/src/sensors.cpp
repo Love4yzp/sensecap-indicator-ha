@@ -9,8 +9,10 @@
  * 
  */
 #include "AHT20.h"
+#include <math.h>
 #include <SensirionI2CSgp40.h>
 #include <SensirionI2cScd4x.h>
+#include <string.h>
 #include <VOCGasIndexAlgorithm.h>
 #include "indicator_rp2040.hpp"
 

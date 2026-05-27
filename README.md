@@ -12,8 +12,10 @@ This firmware turns the SenseCAP Indicator into a Home Assistant companion panel
 ## Version
 
 - Current firmware: `v1.1.0`
+- RP2040 coprocessor firmware: `v2.1.0`
 - Baseline release: `v1.0.0`
 - ESP-IDF: `v5.4.x`
+- RP2040 build system: PlatformIO, see `rp2040/README.md`
 
 `v1.1.0` upgrades the project from the older ESP-IDF 5.1-era codebase to ESP-IDF 5.4.x and improves the MQTT setup experience. The serial console now includes an `mqtthelp` command with concrete broker, topic, and payload examples.
 

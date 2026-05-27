@@ -8,7 +8,9 @@
 
 **Tech Stack:** ESP-IDF C, Arduino RP2040 sketch/C++, PacketSerial/COBS, Python static verification.
 
-**RP2040 build-system decision:** Keep `rp2040/` as Arduino sketch code for this phase. Do not introduce PlatformIO until the Grove scanner/driver-table work is started as a separate migration.
+**RP2040 build-system decision:** This plan documents the pre-`v2.0.1` Arduino
+sketch phase. After tagging `v2.0.1`, the RP2040 firmware migrated to
+PlatformIO with sources under `rp2040/src/` and headers under `rp2040/include/`.
 
 ---
 
@@ -26,7 +28,7 @@
 
 **Files:**
 - Modify: `main/app/esp32_rp2040.h`
-- Modify: `rp2040/indicator_rp2040.hpp`
+- Modify: `rp2040/include/indicator_rp2040.hpp`
 
 - [ ] **Step 1: Add command constants for beep off and Grove rescan.**
 - [ ] **Step 2: Add dynamic packet constants `SENSOR_ATTACHED`, `SENSOR_DETACHED`, `SENSOR_VALUE`.**
@@ -36,9 +38,9 @@
 ### Task 3: RP2040 Compatible Emitter
 
 **Files:**
-- Modify: `rp2040/indicator_rp2040.hpp`
-- Modify: `rp2040/sensors.ino`
-- Modify: `rp2040/rp2040.ino`
+- Modify: `rp2040/include/indicator_rp2040.hpp`
+- Modify: `rp2040/src/sensors.cpp`
+- Modify: `rp2040/src/main.cpp`
 
 - [ ] **Step 1: Add `sensor_attached_send`, `sensor_detached_send`, and `sensor_value_send`.**
 - [ ] **Step 2: Keep `sensor_data_send` unchanged for legacy packets.**
@@ -65,5 +67,5 @@
 
 - [ ] **Step 1: Run `python3 scripts/verify_rp2040_protocol.py`.**
 - [ ] **Step 2: Run `./build.sh` if ESP-IDF is available.**
-- [ ] **Step 3: Run `arduino-cli compile --fqbn rp2040:rp2040:generic rp2040` if Arduino CLI and RP2040 core are available.**
+- [ ] **Step 3: Run `cd rp2040 && pio run` if PlatformIO is available.**
 - [ ] **Step 4: Report hardware checks still required: RP2040 upload, UART live sensor values, shutdown/power-on behavior.**

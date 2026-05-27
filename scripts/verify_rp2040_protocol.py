@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ESP32_HEADER = ROOT / "main/app/esp32_rp2040.h"
-RP2040_HEADER = ROOT / "rp2040/indicator_rp2040.hpp"
+RP2040_HEADER = ROOT / "rp2040/include/indicator_rp2040.hpp"
 
 REQUIRED_VALUES = {
     "PKT_TYPE_NONE": 0x00,

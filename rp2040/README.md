@@ -1,28 +1,45 @@
 # RP2040 Firmware
 
-This directory is an Arduino sketch for the SenseCAP Indicator RP2040 coprocessor.
-It is intentionally not a PlatformIO project yet.
+This directory is a PlatformIO project for the SenseCAP Indicator RP2040 coprocessor.
+The RP2040 firmware currently uses PlatformIO for compile, upload, dependency,
+and serial monitor management.
 
 ## Build
 
-Use the installed Arduino RP2040 core:
+Install PlatformIO, then build from this directory:
 
 ```sh
-arduino-cli compile --fqbn rp2040:rp2040:generic rp2040
+cd rp2040
+pio run
 ```
 
-The current local toolchain uses:
+## Upload
 
-- Core: `rp2040:rp2040` 5.4.2
-- FQBN: `rp2040:rp2040:generic`
-- Libraries: `PacketSerial`, `AHT20`, `Sensirion I2C SGP40`,
-  `Sensirion I2C SCD4x`, `Sensirion Gas Index Algorithm`
+Connect the Indicator RP2040 USB port and run:
 
-## Direction
+```sh
+cd rp2040
+pio run -t upload
+```
 
-Keep this as Arduino sketch code while the ESP32/Home Assistant path is being
-stabilized. A future PlatformIO migration is useful when Grove hot-plug driver
-work starts, because it will let us split the firmware into `src/` and
-`include/` modules with pinned dependencies.
+The project targets `seeed_indicator_rp2040` with the Earle Philhower Arduino
+RP2040 core.
 
-Do not mix that migration with protocol or sensor behavior changes.
+## Serial Monitor
+
+```sh
+cd rp2040
+pio device monitor
+```
+
+The monitor speed is `115200`.
+
+## Dependencies
+
+PlatformIO installs the RP2040 sensor dependencies declared in `platformio.ini`:
+
+- `PacketSerial`
+- `AHT20`
+- `Sensirion I2C SCD4x`
+- `Sensirion I2C SGP40`
+- `Sensirion Gas Index Algorithm`
