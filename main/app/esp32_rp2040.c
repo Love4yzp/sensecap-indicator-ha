@@ -52,7 +52,7 @@ static int __cmd_send(uint8_t cmd, void* p_data, uint8_t len) {
 	uint8_t buf[32] = {0};
 	uint8_t data[32] = {0};
 
-	if(len > 31)
+	if((size_t)len + 1 > sizeof(data))
 	{
 		return -1;
 	}
