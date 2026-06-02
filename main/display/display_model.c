@@ -121,7 +121,8 @@ static void _lcd_bl_on(void) {
 }
 
 static void _lcd_bl_off(void) {
-	ledc_stop(LEDC_MODE, LEDC_CHANNEL, 0);
+	ESP_ERROR_CHECK(ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0));
+	ESP_ERROR_CHECK(ledc_update_duty(LEDC_MODE, LEDC_CHANNEL));
 	_display_st_set(false);
 }
 

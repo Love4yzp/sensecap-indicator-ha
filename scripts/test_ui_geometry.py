@@ -61,6 +61,21 @@ class UiGeometryTests(unittest.TestCase):
         self.assertIn("SCREEN_DISPLAY_MODAL", settings_text)
         self.assertIn("SCREEN_BROKER_MODAL", settings_text)
 
+    def test_settings_modal_preserves_subscreen_back_stack_and_shows_ip(self) -> None:
+        settings_text = SETTINGS_VIEW.read_text()
+
+        self.assertIn('#include "esp_netif.h"', settings_text)
+        self.assertIn("static lv_obj_t *s_settings_ip_label = NULL;", settings_text)
+        self.assertIn("settings_refresh_ip_label();", settings_text)
+        self.assertIn('esp_netif_get_handle_from_ifkey("WIFI_STA_DEF")', settings_text)
+        self.assertIn('"IP: not connected"', settings_text)
+
+        post_screen_start = settings_text.index("static void settings_post_screen")
+        post_screen_end = settings_text.index("static void settings_open_wifi")
+        post_screen_body = settings_text[post_screen_start:post_screen_end]
+        self.assertNotIn("settings_hide_modal();", post_screen_body)
+        self.assertIn("esp_event_post_to", post_screen_body)
+
     def test_temperature_unit_uses_product_degree_symbol(self) -> None:
         offenders: list[str] = []
         for path in MAIN.rglob("*.c"):
@@ -81,6 +96,27 @@ class UiGeometryTests(unittest.TestCase):
         self.assertIn("lv_obj_set_style_bg_opa(back, LV_OPA_TRANSP", text)
         self.assertIn("LV_STATE_PRESSED", text)
         self.assertIn('lv_label_set_text(back_label, LV_SYMBOL_LEFT " Back")', text)
+
+    def test_wifi_back_during_scan_discards_late_scan_result(self) -> None:
+        text = WIFI_VIEW.read_text()
+
+        self.assertIn("static bool s_discard_next_list = false;", text)
+        self.assertIn("static bool s_wifi_scan_pending = false;", text)
+        self.assertIn("s_wifi_scan_pending = true;", text)
+        self.assertIn("s_wifi_scan_pending = false;", text)
+        self.assertIn("discard stale scan result", text)
+
+        hide_start = text.index("static void _hide_wifi_modal")
+        hide_end = text.index("static void _on_wifi_modal_back")
+        hide_body = text[hide_start:hide_end]
+        self.assertIn("if(s_wifi_scan_pending)", hide_body)
+        self.assertIn("s_discard_next_list = true;", hide_body)
+
+        list_case = text[text.index("case VIEW_EVENT_WIFI_LIST:"):]
+        self.assertLess(
+            list_case.index("if(s_discard_next_list)"),
+            list_case.index("wifi_list_screen_update"),
+        )
 
 
 if __name__ == "__main__":

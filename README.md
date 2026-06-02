@@ -9,6 +9,7 @@ Firmware that turns the [Seeed Studio SenseCAP Indicator](https://www.seeedstudi
     <img align="center" src="./assets/mqtt-address-panel.png" width="240"/>
 </figure>
 
+
 ---
 
 ## Table of Contents

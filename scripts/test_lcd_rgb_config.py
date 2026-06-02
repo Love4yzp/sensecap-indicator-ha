@@ -61,6 +61,17 @@ class LcdRgbConfigTests(unittest.TestCase):
 
         self.assertIn(".bb_mode = true", text)
 
+    def test_backlight_sleep_keeps_ledc_pwm_restartable(self) -> None:
+        text = (ROOT / "main/display/display_model.c").read_text()
+        start = text.index("static void _lcd_bl_off")
+        end = text.index("static void _sleep_mode_timer_callback")
+        body = text[start:end]
+
+        self.assertNotIn("ledc_stop(", body)
+        self.assertIn("ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 0)", body)
+        self.assertIn("ledc_update_duty(LEDC_MODE, LEDC_CHANNEL)", body)
+        self.assertIn("_display_st_set(false)", body)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

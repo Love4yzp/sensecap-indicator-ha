@@ -30,6 +30,9 @@ static bool _wifi_modal_is_visible(void) {
     return s_wifi_modal && !lv_obj_has_flag(s_wifi_modal, LV_OBJ_FLAG_HIDDEN);
 }
 
+static bool s_discard_next_list = false;
+static bool s_wifi_scan_pending = false;
+
 static void _hide_wifi_modal(void) {
     if(s_connect_screen) {
         wifi_connect_screen_dismiss(s_connect_screen);
@@ -37,6 +40,9 @@ static void _hide_wifi_modal(void) {
     }
     if(s_wifi_modal) {
         lv_obj_add_flag(s_wifi_modal, LV_OBJ_FLAG_HIDDEN);
+        if(s_wifi_scan_pending) {
+            s_discard_next_list = true;
+        }
     }
 }
 
@@ -116,6 +122,7 @@ static void _show_wifi_modal(void) {
     lv_obj_move_foreground(s_wifi_modal);
     wifi_list_screen_show_spinner(s_list_screen);
 
+    s_wifi_scan_pending = true;
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
                       VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
 }
@@ -262,6 +269,12 @@ static void _view_event_handler(void *handler_args, esp_event_base_t base,
 
         case VIEW_EVENT_WIFI_LIST: {
             ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_LIST");
+            s_wifi_scan_pending = false;
+            if(s_discard_next_list) {
+                s_discard_next_list = false;
+                ESP_LOGI(TAG, "discard stale scan result (user backed out)");
+                break;
+            }
             struct view_data_wifi_list *p_list = (struct view_data_wifi_list *)event_data;
             lv_port_sem_take();
             _ensure_wifi_modal();

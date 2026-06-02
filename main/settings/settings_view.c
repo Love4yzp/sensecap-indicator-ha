@@ -1,7 +1,10 @@
 #include "settings_view.h"
 
+#include <stdio.h>
+
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "lv_port.h"
 #include "nav.h"
 #include "sdkconfig.h"
@@ -14,6 +17,30 @@ LV_FONT_DECLARE(lv_font_montserrat_28);
 static const char *TAG = "settings-view";
 
 static lv_obj_t *s_settings_modal = NULL;
+static lv_obj_t *s_settings_ip_label = NULL;
+
+static void settings_refresh_ip_label(void)
+{
+	if(!s_settings_ip_label)
+	{
+		return;
+	}
+
+	esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+	esp_netif_ip_info_t ip_info = {0};
+
+	if(netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK &&
+	   ip_info.ip.addr != 0)
+	{
+		char buf[40];
+		snprintf(buf, sizeof(buf), "IP: " IPSTR, IP2STR(&ip_info.ip));
+		lv_label_set_text(s_settings_ip_label, buf);
+	}
+	else
+	{
+		lv_label_set_text(s_settings_ip_label, "IP: not connected");
+	}
+}
 
 static void settings_hide_modal(void)
 {
@@ -25,7 +52,6 @@ static void settings_hide_modal(void)
 
 static void settings_post_screen(enum start_screen screen)
 {
-	settings_hide_modal();
 	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
 					  VIEW_EVENT_SCREEN_START, &screen, sizeof(screen),
 					  portMAX_DELAY);
@@ -70,6 +96,7 @@ void settings_view_show(void)
 		return;
 	}
 
+	settings_refresh_ip_label();
 	lv_obj_remove_flag(s_settings_modal, LV_OBJ_FLAG_HIDDEN);
 	lv_obj_move_foreground(s_settings_modal);
 }
@@ -217,6 +244,15 @@ static void settings_create_modal(void)
 	lv_obj_set_style_text_color(title, lv_color_white(),
 								LV_PART_MAIN | LV_STATE_DEFAULT);
 	lv_obj_set_align(title, LV_ALIGN_BOTTOM_MID);
+
+	s_settings_ip_label = lv_label_create(s_settings_modal);
+	lv_label_set_text(s_settings_ip_label, "IP: not connected");
+	lv_obj_set_style_text_font(s_settings_ip_label, &lv_font_montserrat_20,
+							   LV_PART_MAIN | LV_STATE_DEFAULT);
+	lv_obj_set_style_text_color(s_settings_ip_label, lv_color_hex(0xe7ecef),
+								LV_PART_MAIN | LV_STATE_DEFAULT);
+	lv_obj_set_align(s_settings_ip_label, LV_ALIGN_TOP_MID);
+	lv_obj_set_y(s_settings_ip_label, 105);
 
 	settings_create_card(s_settings_modal, 80, 150,
 						 lv_color_hex(0x4EACE4), "WiFi", LV_SYMBOL_WIFI,
