@@ -144,8 +144,6 @@ static void _ip_event_handler(void* arg, esp_event_base_t event_base, int32_t ev
 
 static int _wifi_scan(wifi_ap_record_t* p_ap_info, uint16_t number) {
 	uint16_t ap_count;
-	ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-	ESP_ERROR_CHECK(esp_wifi_start());
 	esp_wifi_scan_start(NULL, true);
 
 	ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
