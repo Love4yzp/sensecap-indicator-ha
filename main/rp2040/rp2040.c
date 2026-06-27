@@ -219,7 +219,7 @@ static void esp32_rp2040_comm_task(void* arg) {
 								 (unsigned)(frag_len + chunk_len));
 						frag_len = 0;
 					}
-					if(frag_len + chunk_len <= sizeof(frag))
+					else
 					{
 						memcpy(frag + frag_len, p_buf_start, chunk_len);
 						frag_len += chunk_len;
