@@ -166,7 +166,6 @@ static int _wifi_connect(const char* p_ssid, const char* p_password, int retry_n
 	ESP_LOGI(TAG, "ssid: %s", p_ssid);
 	if(p_password)
 	{
-		ESP_LOGI(TAG, "password: %s", p_password);
 		strlcpy((char*)wifi_config.sta.password, p_password, sizeof(wifi_config.sta.password));
 		wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 	}

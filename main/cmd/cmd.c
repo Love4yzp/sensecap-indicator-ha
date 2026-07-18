@@ -61,7 +61,7 @@ static int read_ha_config(int argc, char **argv) {
     ESP_LOGI(TAG, "| Broker Address               | %-40s |", ha_cfg.broker_url);
     ESP_LOGI(TAG, "| Client ID                    | %-40s |", ha_cfg.client_id);
     ESP_LOGI(TAG, "| MQTT username                | %-40s |", ha_cfg.username);
-    ESP_LOGI(TAG, "| MQTT password                | %-40s |", ha_cfg.password);
+    ESP_LOGI(TAG, "| MQTT password                | %-40s |", ha_cfg.password[0] ? "****" : "(not set)");
     ESP_LOGI(TAG, "Run 'mqtthelp' for setmqtt examples and MQTT topic/payload examples.");
     return 0;
 }
@@ -123,7 +123,7 @@ static int mqtt_config_set(int argc, char **argv) {
     if (mqtt_args.password->count > 0) {
         memset(ha_cfg.password, 0, sizeof(ha_cfg.password));
         strncpy(ha_cfg.password, mqtt_args.password->sval[0], sizeof(ha_cfg.password) - 1);
-        ESP_LOGI(TAG, "Set MQTT password: %s", ha_cfg.password);
+        ESP_LOGI(TAG, "Set MQTT password: %s", ha_cfg.password[0] ? "****" : "(not set)");
     }
     if (mqtt_args.broker_url->count > 0) {
         char broker_url[sizeof(ha_cfg.broker_url)];
