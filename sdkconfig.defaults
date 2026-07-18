@@ -80,3 +80,11 @@ CONFIG_LV_FONT_MONTSERRAT_46=y
 CONFIG_LV_FONT_MONTSERRAT_48=y
 
 CONFIG_LV_SPRINTF_USE_FLOAT=y
+
+
+# TLS capability for MQTT (feat: mqtts:// support).
+# These only PERMIT the runtime "setmqtt --insecure" opt-out of server
+# verification; the runtime default remains full verification (stored CA
+# via setmqttca, else the public certificate bundle).
+CONFIG_ESP_TLS_INSECURE=y
+CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y
