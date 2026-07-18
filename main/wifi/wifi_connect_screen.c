@@ -16,12 +16,25 @@ struct wifi_connect_screen {
     lv_obj_t *join_btn;
     char       ssid[32];
     bool       password_ready;
+    wifi_connect_dismiss_cb_t on_dismiss;
+    void      *dismiss_user_data;
 };
 
 /* ── internal helpers ─────────────────────────────────────────────────── */
 
 static void _dismiss(wifi_connect_screen_t *s) {
     if(!s) return;
+
+    /* Notify the owner FIRST, clearing our hook so it fires exactly once.
+     * Doing this before teardown means a reentrant dismiss (e.g. triggered
+     * while deleting objects) finds the owner's handle already NULL and bails,
+     * so there is no double free. The callback only drops the owner's
+     * reference; it must not free `s` or call back into dismiss.              */
+    wifi_connect_dismiss_cb_t cb = s->on_dismiss;
+    void *cb_data = s->dismiss_user_data;
+    s->on_dismiss = NULL;
+    if(cb) cb(cb_data);
+
     if(s->kb) {
         lv_obj_delete(s->kb);
         s->kb = NULL;
@@ -233,6 +246,14 @@ wifi_connect_screen_t *wifi_details_screen_show(const char *ssid) {
 
     ESP_LOGI(TAG, "details dialog open: %s", ssid);
     return s;
+}
+
+void wifi_connect_screen_set_dismiss_cb(wifi_connect_screen_t *s,
+                                        wifi_connect_dismiss_cb_t on_dismiss,
+                                        void *user_data) {
+    if(!s) return;
+    s->on_dismiss = on_dismiss;
+    s->dismiss_user_data = user_data;
 }
 
 void wifi_connect_screen_dismiss(wifi_connect_screen_t *s) {
