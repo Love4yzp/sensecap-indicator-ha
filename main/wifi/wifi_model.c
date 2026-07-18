@@ -203,8 +203,15 @@ static void _wifi_cfg_restore(void) {
 	st.is_network = false;
 	_wifi_st_set(&st);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
-					  portMAX_DELAY);
+	/* Reachable from the view loop (VIEW_EVENT_WIFI_CFG_DELETE handler); bound
+	 * the post so a full queue cannot deadlock that task. */
+	esp_err_t err = esp_event_post_to(
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
+		sizeof(struct view_data_wifi_st), pdMS_TO_TICKS(100));
+	if(err != ESP_OK)
+	{
+		ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_ST: %s", esp_err_to_name(err));
+	}
 
 	esp_wifi_restore();
 }
@@ -218,8 +225,15 @@ static void _wifi_shutdown(void) {
 	st.is_network = false;
 	_wifi_st_set(&st);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
-					  portMAX_DELAY);
+	/* Reachable from the view loop (VIEW_EVENT_SHUTDOWN handler); bound the post
+	 * so a full queue cannot deadlock that task. */
+	esp_err_t err = esp_event_post_to(
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
+		sizeof(struct view_data_wifi_st), pdMS_TO_TICKS(100));
+	if(err != ESP_OK)
+	{
+		ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_ST: %s", esp_err_to_name(err));
+	}
 
 	esp_wifi_stop();
 }
@@ -391,8 +405,16 @@ static void _view_event_handler(void* handler_args, esp_event_base_t base, int32
 				}
 			}
 			list.cnt = list_cnt;
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, &list,
-							  sizeof(struct view_data_wifi_list), portMAX_DELAY);
+			/* This handler runs in the view loop task and posts back into the
+			 * same queue it drains; a blocking self-post deadlocks it when the
+			 * queue is full, so bound it and warn on drop. */
+			esp_err_t err = esp_event_post_to(
+				view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, &list,
+				sizeof(struct view_data_wifi_list), pdMS_TO_TICKS(100));
+			if(err != ESP_OK)
+			{
+				ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_LIST: %s", esp_err_to_name(err));
+			}
 
 			break;
 		}

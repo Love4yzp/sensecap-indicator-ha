@@ -41,16 +41,17 @@ indicator_ha_model_init()   (called later from indicator_model.c)
 ## Event Flows
 
 ```
-User toggles switch widget
-  → ha_switch_screen.c: LV_EVENT_VALUE_CHANGED
+User changes a switch widget
+  → ha_switch_screen.c: LV_EVENT_VALUE_CHANGED (toggles) / LV_EVENT_RELEASED (slider, arc)
   → post VIEW_EVENT_HA_SWITCH_ST {index, value}
-  → ha_switch.c: publish to MQTT topic_state, save NVS
+  → ha_switch.c: publish to MQTT topic_state, save NVS (skipped when unchanged)
 
 MQTT broker sends switch command
   → ha_mqtt.c: MQTT_EVENT_DATA
   → ha_switch_on_mqtt_data()
   → post VIEW_EVENT_HA_SWITCH_SET {index, value}
-  → ha_switch.c: ha_switch_screen_update() [LVGL lock]
+  → ha_switch.c: ha_switch_screen_update() [LVGL lock] applies widget state silently,
+    then publishes to MQTT topic_state + saves NVS directly (no LVGL event round-trip)
 
 WiFi connects
   → VIEW_EVENT_WIFI_ST {is_network=true}

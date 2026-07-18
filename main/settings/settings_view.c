@@ -52,9 +52,14 @@ static void settings_hide_modal(void)
 
 static void settings_post_screen(enum start_screen screen)
 {
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-					  VIEW_EVENT_SCREEN_START, &screen, sizeof(screen),
-					  portMAX_DELAY);
+	/* LVGL task context (card tap): bound the post and warn on drop. */
+	esp_err_t err = esp_event_post_to(
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_START,
+		&screen, sizeof(screen), pdMS_TO_TICKS(100));
+	if(err != ESP_OK)
+	{
+		ESP_LOGW(TAG, "drop VIEW_EVENT_SCREEN_START: %s", esp_err_to_name(err));
+	}
 }
 
 static void settings_open_wifi(lv_event_t *e)
