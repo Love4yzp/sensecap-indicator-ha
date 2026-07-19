@@ -47,7 +47,13 @@ CONFIG_LV_DEF_REFR_PERIOD=10
 
 
 # CONFIG_LV_CONF_MINIMAL=y
-CONFIG_LV_MEM_CUSTOM=y
+# LVGL 9: route lv_malloc() to the C library heap (ESP heap incl. PSRAM).
+# The former CONFIG_LV_MEM_CUSTOM=y was an LVGL 8 option with no effect on
+# LVGL 9, which silently fell back to the built-in TLSF allocator and its
+# 64 KB static pool. Composite-layer draw buffers (forced by any translucent
+# widget) exceed that pool, and the draw dispatcher live-locks retrying the
+# failed allocation: taskLVGL spins, IDLE1 starves, task_wdt fires forever.
+CONFIG_LV_USE_CLIB_MALLOC=y
 # CONFIG_LV_MEMCPY_MEMSET_STD=y
 # CONFIG_LV_USE_ASSERT_NULL=y
 # CONFIG_LV_USE_ASSERT_MALLOC=y

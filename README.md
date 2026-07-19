@@ -166,7 +166,7 @@ idf.py -p /dev/ttyUSB0 -b 460800 flash monitor
 
 **Critical `sdkconfig.defaults` settings — do not remove:**
 
-- `CONFIG_LV_MEM_CUSTOM=y` — required; removing causes LVGL to freeze
+- `CONFIG_LV_USE_CLIB_MALLOC=y` — required; LVGL 9 must allocate from the ESP heap (PSRAM). Its built-in 64 KB TLSF pool cannot hold composite-layer draw buffers, and a failed layer allocation live-locks the render task (UI freeze + task_wdt). The old `CONFIG_LV_MEM_CUSTOM=y` was an LVGL 8 option and has no effect on LVGL 9.
 - PSRAM clock: 120 MHz OCT mode
 - CPU: 240 MHz, flash: QIO 120 MHz
 
