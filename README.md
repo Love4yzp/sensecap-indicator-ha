@@ -205,6 +205,26 @@ setmqtt --addr mqtt://broker.emqx.io
 
 After `setmqtt` succeeds, the configuration is saved to NVS and the MQTT client restarts automatically.
 
+### TLS (`mqtts://`)
+
+Use an `mqtts://` broker URL to encrypt the MQTT connection (port defaults to 8883):
+
+| Command | Description |
+|---------|-------------|
+| `setmqtt -a mqtts://<host>[:port] ...` | TLS broker; server certificate is verified |
+| `setmqttca` | Paste a CA certificate PEM over the console; stored in NVS and used to verify the broker |
+| `setmqttca -c` | Clear the stored CA (falls back to the built-in public CA bundle) |
+| `setmqtt --insecure` / `--secure` | Skip / re-enable server verification (skipping is discouraged) |
+
+Verification order: stored CA if present, otherwise the public CA bundle (for
+cloud brokers with real certificates). LAN brokers with a self-signed/private
+CA need `setmqttca`. The touchscreen MQTT page stays plaintext-only (`mqtt://`).
+
+**With Home Assistant's Mosquitto add-on:** set `certfile`/`keyfile`/`cafile`
+in the add-on configuration to expose a TLS listener on 8883 (HA and other
+local clients can keep using 1883 internally), then paste your CA cert into
+`setmqttca` and point `setmqtt` at `mqtts://<HA-host>:8883`.
+
 ---
 
 ## Configuration

@@ -2,10 +2,12 @@
 #include <string.h>
 
 #include "ha.h"
+#include "ha_tls.h"
 #include "home_assistant_config.h"
 #include "mqtt.h"
 #include "esp_log.h"
 #include "esp_event.h"
+#include "esp_crt_bundle.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -15,6 +17,11 @@ ESP_EVENT_DEFINE_BASE(HA_CFG_EVENT_BASE);
 esp_event_loop_handle_t ha_cfg_event_handle;
 instance_mqtt mqtt_ha_instance;
 static instance_mqtt_t instance_ptr = &mqtt_ha_instance;
+
+/* CA PEM for the active client. esp-mqtt stores the certificate POINTER (it
+ * does not copy cert buffers the way it copies credential strings), so this
+ * must outlive the client; it is freed and reloaded on every (re)start. */
+static char *s_tls_ca = NULL;
 
 static void _mqtt_ha_start(instance_mqtt *instance);
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
@@ -127,6 +134,12 @@ static void _mqtt_ha_start(instance_mqtt *instance)
         instance->mqtt_cfg = NULL;
     }
 
+    /* Safe to release only after the client referencing it was destroyed. */
+    if (s_tls_ca != NULL) {
+        free(s_tls_ca);
+        s_tls_ca = NULL;
+    }
+
     ha_cfg_interface hf_cfg;
     if (ha_cfg_get(&hf_cfg) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get HA configuration");
@@ -141,7 +154,34 @@ static void _mqtt_ha_start(instance_mqtt *instance)
         .credentials.authentication.password = hf_cfg.password,
     };
 
+    /* TLS trust wiring — only for mqtts:// URLs; plaintext mqtt:// is untouched.
+     * esp-mqtt picks port 8883 automatically when an mqtts URI carries no port. */
+    bool tls = ha_tls_url_is_tls(hf_cfg.broker_url);
+    ha_tls_mode_t tls_mode = HA_TLS_MODE_VERIFY;
+    size_t ca_len = 0;
+    if (tls) {
+        tls_mode = ha_tls_mode_get();
+        if (tls_mode == HA_TLS_MODE_INSECURE) {
+            /* No trust source configured: with CONFIG_ESP_TLS_INSECURE +
+             * CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY (sdkconfig.defaults),
+             * esp-tls encrypts the session but skips server verification. */
+            ESP_LOGW(TAG, "TLS INSECURE mode: server certificate is NOT verified");
+        } else {
+            s_tls_ca = ha_tls_ca_load(&ca_len);
+            if (s_tls_ca != NULL) {
+                instance->mqtt_cfg->broker.verification.certificate = s_tls_ca;
+            } else {
+                instance->mqtt_cfg->broker.verification.crt_bundle_attach = esp_crt_bundle_attach;
+            }
+        }
+    }
+
     ESP_LOGI(TAG, "| Broker Address               | %-40s |", hf_cfg.broker_url);
+    ESP_LOGI(TAG, "| TLS                          | %-40s |",
+             !tls                                ? "off (mqtt://)"
+             : tls_mode == HA_TLS_MODE_INSECURE  ? "on, INSECURE (no verification)"
+             : s_tls_ca                          ? "on, verify: stored CA"
+                                                 : "on, verify: public CA bundle");
     ESP_LOGI(TAG, "| Client ID                    | %-40s |", hf_cfg.client_id);
     ESP_LOGI(TAG, "| username                     | %-40s |", hf_cfg.username);
     ESP_LOGI(TAG, "| password                     | %-40s |", hf_cfg.password);
