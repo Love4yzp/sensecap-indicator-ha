@@ -215,7 +215,7 @@ enum {
     /* P: ha/ha_switch_screen.c  C: ha/ha_switch.c  Payload: struct view_data_ha_switch_data */
     VIEW_EVENT_HA_SWITCH_ST,
 
-    /* P: ha/ha_switch.c  C: ha/ha_switch.c (internal loop)  Payload: struct view_data_ha_switch_data */
+    /* P: ha/ha_switch.c  C: ha/ha_switch.c (updates screen, publishes state echo + persists)  Payload: struct view_data_ha_switch_data */
     VIEW_EVENT_HA_SWITCH_SET,
 
     VIEW_EVENT_ALL,

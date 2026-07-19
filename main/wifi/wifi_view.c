@@ -123,8 +123,13 @@ static void _show_wifi_modal(void) {
     wifi_list_screen_show_spinner(s_list_screen);
 
     s_wifi_scan_pending = true;
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                      VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
+    /* Reachable from the LVGL task (icon tap) and the view loop (SCREEN_START);
+     * bound the post so a full queue can never freeze either. */
+    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                                      VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, pdMS_TO_TICKS(100));
+    if(err != ESP_OK) {
+        ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_LIST_REQ: %s", esp_err_to_name(err));
+    }
 }
 
 static void _on_wifi_icon_clicked(lv_event_t *e) {
@@ -291,9 +296,14 @@ static void _view_event_handler(void *handler_args, esp_event_base_t base,
             lv_port_sem_give();
             if(!modal_visible) break;
 
-            /* Refresh list then show result toast. */
-            esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                              VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
+            /* Refresh list then show result toast. Runs in the view loop task;
+             * a blocking self-post here would deadlock the loop on a full
+             * queue, so bound it and warn on drop. */
+            esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                                              VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, pdMS_TO_TICKS(100));
+            if(err != ESP_OK) {
+                ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_LIST_REQ: %s", esp_err_to_name(err));
+            }
 
             lv_port_sem_take();
             _show_connect_result(p_data);

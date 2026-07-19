@@ -14,6 +14,8 @@
 #include <esp_log.h>
 #include "sdkconfig.h"
 
+static const char* TAG = "display-view";
+
 static lv_obj_t* s_display_modal = NULL;
 static lv_obj_t* s_brightness_cfg = NULL;
 static lv_obj_t* s_sleep_mode_cfg = NULL;
@@ -317,8 +319,14 @@ void brighness_cfg_event_cb(lv_event_t* e) // Value changed
 {
 	lv_obj_t* slider = lv_event_get_target_obj(e);
 	int32_t value = lv_slider_get_value(slider);
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_BRIGHTNESS_UPDATE, &value,
-					  sizeof(value), portMAX_DELAY);
+	/* LVGL task context: bound the post so a full view queue cannot freeze it. */
+	esp_err_t err = esp_event_post_to(
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_BRIGHTNESS_UPDATE,
+		&value, sizeof(value), pdMS_TO_TICKS(100));
+	if(err != ESP_OK)
+	{
+		ESP_LOGW(TAG, "drop VIEW_EVENT_BRIGHTNESS_UPDATE: %s", esp_err_to_name(err));
+	}
 }
 
 // static void _display_cfg_apply_event_cb(lv_event_t * e)
@@ -331,8 +339,14 @@ void display_cfg_apply_event_cb(lv_event_t* e) // defocused the textarea
 		return;
 	}
 	_display_cfg_from_widgets(&cfg);
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_DISPLAY_CFG_APPLY, &cfg,
-					  sizeof(cfg), portMAX_DELAY);
+	/* LVGL task context: bound the post so a full view queue cannot freeze it. */
+	esp_err_t err = esp_event_post_to(
+		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_DISPLAY_CFG_APPLY,
+		&cfg, sizeof(cfg), pdMS_TO_TICKS(100));
+	if(err != ESP_OK)
+	{
+		ESP_LOGW(TAG, "drop VIEW_EVENT_DISPLAY_CFG_APPLY: %s", esp_err_to_name(err));
+	}
 }
 
 void brighness_update_callback(lv_event_t* e) {

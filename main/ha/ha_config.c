@@ -78,8 +78,12 @@ static void _on_broker_confirm(lv_event_t *e)
         return;
     }
 
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                      VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, 0, portMAX_DELAY);
+    /* LVGL task context (confirm tap): bound the post and warn on drop. */
+    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                                      VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, 0, pdMS_TO_TICKS(100));
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "drop VIEW_EVENT_MQTT_ADDR_CHANGED: %s", esp_err_to_name(err));
+    }
 }
 
 static void _on_ip_textarea_clicked(lv_event_t *e)
