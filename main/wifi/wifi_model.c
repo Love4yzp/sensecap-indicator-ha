@@ -79,7 +79,9 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 
 			_wifi_st_get(&st);
 			memset(st.ssid, 0, sizeof(st.ssid));
-			memcpy(st.ssid, event->ssid, event->ssid_len);
+			int ssid_len = min(event->ssid_len, (int)sizeof(st.ssid) - 1);
+			memcpy(st.ssid, event->ssid, ssid_len);
+			st.ssid[ssid_len] = '\0';
 			st.rssi = -50; // todo
 			st.is_connected = true;
 			st.is_connecting = false;
@@ -384,7 +386,7 @@ static void _view_event_handler(void* handler_args, esp_event_base_t base, int32
 				}
 				if(!is_exist)
 				{
-					strcpy(list.aps[list_cnt].ssid, ap_info[i].ssid);
+					strlcpy(list.aps[list_cnt].ssid, (char*)ap_info[i].ssid, sizeof(list.aps[list_cnt].ssid));
 					list.aps[list_cnt].rssi = ap_info[i].rssi;
 					list.aps[list_cnt].auth_mode = (ap_info[i].authmode != WIFI_AUTH_OPEN);
 					list_cnt++;
