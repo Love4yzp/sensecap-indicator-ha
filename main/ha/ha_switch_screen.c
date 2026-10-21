@@ -112,10 +112,15 @@ static void _post_switch_value(int index, int value)
     };
 
     ESP_LOGI(TAG, "switch%d: %d", index + 1, value);
+    /*
+     * Runs in the LVGL task on real user input. Bound the post so a full view
+     * queue can never block the UI thread; a dropped ST tick just skips one
+     * MQTT echo/save and the next input re-posts.
+     */
     esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST,
-                                      &switch_data, sizeof(switch_data), portMAX_DELAY);
+                                      &switch_data, sizeof(switch_data), pdMS_TO_TICKS(100));
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "failed to post switch event: %s", esp_err_to_name(err));
+        ESP_LOGW(TAG, "drop VIEW_EVENT_HA_SWITCH_ST (index %d): %s", index, esp_err_to_name(err));
     }
 }
 
@@ -146,7 +151,8 @@ static void _switch_toggle_event_cb(lv_event_t *e)
 
 static void _arc_event_cb(lv_event_t *e)
 {
-    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) {
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code != LV_EVENT_VALUE_CHANGED && code != LV_EVENT_RELEASED) {
         return;
     }
 
@@ -156,17 +162,24 @@ static void _arc_event_cb(lv_event_t *e)
     }
 
     int value = lv_arc_get_value(slot->widget);
-    if (slot->aux) {
-        char buf[32];
-        lv_snprintf(buf, sizeof(buf), "%d °C", value);
-        lv_label_set_text((lv_obj_t *)slot->aux, buf);
+    if (code == LV_EVENT_VALUE_CHANGED) {
+        /* Live label feedback during the drag; defer the post until release. */
+        if (slot->aux) {
+            char buf[32];
+            lv_snprintf(buf, sizeof(buf), "%d °C", value);
+            lv_label_set_text((lv_obj_t *)slot->aux, buf);
+        }
+        return;
     }
+
+    /* LV_EVENT_RELEASED: publish/save once, when the user lets go. */
     _post_switch_value(slot->index, value);
 }
 
 static void _slider_event_cb(lv_event_t *e)
 {
-    if (lv_event_get_code(e) != LV_EVENT_VALUE_CHANGED) {
+    /* Post once on release, not on every VALUE_CHANGED tick during a drag. */
+    if (lv_event_get_code(e) != LV_EVENT_RELEASED) {
         return;
     }
 
@@ -187,7 +200,12 @@ static void _update_toggle(lv_obj_t *w, int value, void *aux)
     } else {
         lv_obj_remove_state(w, LV_STATE_CHECKED);
     }
-    lv_obj_send_event(w, LV_EVENT_VALUE_CHANGED, NULL);
+    /*
+     * Apply state silently. Firing VALUE_CHANGED here would re-enter the switch
+     * callback and post VIEW_EVENT_HA_SWITCH_ST back into the view loop that is
+     * driving this update -- the self-deadlock. The controller publishes the
+     * echo directly instead (see ha_switch.c VIEW_EVENT_HA_SWITCH_SET).
+     */
 }
 
 static void _update_arc(lv_obj_t *w, int value, void *aux)
@@ -199,7 +217,7 @@ static void _update_arc(lv_obj_t *w, int value, void *aux)
         lv_label_set_text((lv_obj_t *)aux, buf);
     }
     lv_arc_set_value(w, value);
-    lv_obj_send_event(w, LV_EVENT_VALUE_CHANGED, NULL);
+    /* Silent apply: the label is already set above; no event re-entry. */
 }
 
 static void _update_slider(lv_obj_t *w, int value, void *aux)
@@ -207,7 +225,7 @@ static void _update_slider(lv_obj_t *w, int value, void *aux)
     (void)aux;
 
     lv_slider_set_value(w, value, LV_ANIM_ON);
-    lv_obj_send_event(w, LV_EVENT_VALUE_CHANGED, NULL);
+    /* Silent apply: no event re-entry into the view loop. */
 }
 
 static void _style_panel(lv_obj_t *obj, int32_t width, int32_t height, int32_t x, int32_t y)
@@ -416,7 +434,9 @@ static void _create_arc_card(lv_obj_t *tile, switch_slot_t *slot)
     slot->widget = arc;
     slot->aux = data;
     slot->update = _update_arc;
+    /* VALUE_CHANGED drives the live label; RELEASED drives the single post. */
     lv_obj_add_event_cb(arc, _arc_event_cb, LV_EVENT_VALUE_CHANGED, slot);
+    lv_obj_add_event_cb(arc, _arc_event_cb, LV_EVENT_RELEASED, slot);
 }
 
 static void _create_slider_card(lv_obj_t *tile, switch_slot_t *slot)
@@ -446,7 +466,7 @@ static void _create_slider_card(lv_obj_t *tile, switch_slot_t *slot)
 
     slot->widget = slider;
     slot->update = _update_slider;
-    lv_obj_add_event_cb(slider, _slider_event_cb, LV_EVENT_VALUE_CHANGED, slot);
+    lv_obj_add_event_cb(slider, _slider_event_cb, LV_EVENT_RELEASED, slot);
 }
 
 static void _init_slots(ha_switch_screen_t *s)
@@ -527,6 +547,12 @@ void ha_switch_screen_update(ha_switch_screen_t *s, int index, int value)
 
     ESP_LOGI(TAG, "update index:%d value:%d", index, value);
     slot->update(slot->widget, value, slot->aux);
+    /*
+     * Programmatic (MQTT/restore) updates no longer fire VALUE_CHANGED, so
+     * refresh the on/off toggle icon directly. No-op for slots without an icon
+     * (arc, slider, embedded switch).
+     */
+    _set_toggle_icon(slot, value != 0);
 }
 
 void ha_switch_screen_destroy(ha_switch_screen_t *s)

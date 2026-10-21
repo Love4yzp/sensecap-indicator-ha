@@ -60,8 +60,12 @@ static void _on_join(lv_event_t *e) {
         cfg.have_password = false;
     }
 
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT,
-                      &cfg, sizeof(cfg), portMAX_DELAY);
+    /* LVGL task context: bound the post so a full view queue cannot freeze it. */
+    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT,
+                                      &cfg, sizeof(cfg), pdMS_TO_TICKS(100));
+    if(err != ESP_OK) {
+        ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_CONNECT: %s", esp_err_to_name(err));
+    }
 
     _dismiss(s);
 }
@@ -100,10 +104,17 @@ static void _on_delete(lv_event_t *e) {
     wifi_connect_screen_t *s = (wifi_connect_screen_t *)lv_event_get_user_data(e);
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
 
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE,
-                      NULL, 0, portMAX_DELAY);
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ,
-                      NULL, 0, portMAX_DELAY);
+    /* LVGL task context: bound both posts and warn on drop. */
+    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE,
+                                      NULL, 0, pdMS_TO_TICKS(100));
+    if(err != ESP_OK) {
+        ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_CFG_DELETE: %s", esp_err_to_name(err));
+    }
+    err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ,
+                            NULL, 0, pdMS_TO_TICKS(100));
+    if(err != ESP_OK) {
+        ESP_LOGW(TAG, "drop VIEW_EVENT_WIFI_LIST_REQ: %s", esp_err_to_name(err));
+    }
 
     _dismiss(s);
 }

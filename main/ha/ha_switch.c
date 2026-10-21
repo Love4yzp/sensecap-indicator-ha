@@ -25,6 +25,9 @@ typedef struct ha_switch_entity {
 
 static ha_switch_entity_t ha_switch_entities[CONFIG_HA_SWITCH_ENTITY_NUM];
 static int switch_state[CONFIG_HA_SWITCH_ENTITY_NUM];
+/* Snapshot of what is currently persisted in NVS, for the save dirty-check. */
+static int persisted_switch_state[CONFIG_HA_SWITCH_ENTITY_NUM];
+static bool persisted_state_valid = false;
 static TaskHandle_t restore_task_handle = NULL;
 static ha_switch_screen_t *_screen = NULL;
 
@@ -39,14 +42,30 @@ static void ha_ctrl_cfg_restore(void)
         ESP_LOGW(TAG, "read control config failed, initializing to defaults");
         memset(switch_state, 0, sizeof(switch_state));
     }
+
+    /* Seed the dirty-check snapshot so an identical save is skipped. */
+    memcpy(persisted_switch_state, switch_state, sizeof(switch_state));
+    persisted_state_valid = true;
 }
 
 static void ha_ctrl_cfg_save(void)
 {
+    /*
+     * Dirty-check: skip the flash write when nothing changed. This absorbs the
+     * per-tick save flood during slider/arc drags and the full 8-switch
+     * re-apply the restore task performs on every MQTT reconnect.
+     */
+    if (persisted_state_valid &&
+        memcmp(persisted_switch_state, switch_state, sizeof(switch_state)) == 0) {
+        return;
+    }
+
     esp_err_t ret = indicator_nvs_write(HA_CFG_STORAGE, switch_state, sizeof(switch_state));
     if (ret != ESP_OK) {
         ESP_LOGI(TAG, "ctrl cfg write err:%d", ret);
     } else {
+        memcpy(persisted_switch_state, switch_state, sizeof(switch_state));
+        persisted_state_valid = true;
         ESP_LOGI(TAG, "ctrl cfg write successful");
     }
 }
@@ -114,6 +133,14 @@ static void view_event_handler(void *handler_args, esp_event_base_t base, int32_
                 ha_switch_screen_update(_screen, p->index, p->value);
                 lv_port_sem_give();
             }
+            /*
+             * The screen update no longer bounces back through LVGL into
+             * VIEW_EVENT_HA_SWITCH_ST, so emit the protocol-required state echo
+             * on indicator/switch/state and persist here -- exactly the work
+             * the ST handler does for user-driven changes, done once, in this
+             * task's own context (no LVGL round-trip, no self-post).
+             */
+            publish_switch_state(p);
             break;
         }
         default:
