@@ -205,6 +205,10 @@ setmqtt --addr mqtt://broker.emqx.io
 
 After `setmqtt` succeeds, the configuration is saved to NVS and the MQTT client restarts automatically.
 
+### Security notes
+
+MQTT and Wi-Fi credentials are stored in plaintext in NVS, and the serial console is unauthenticated — anyone with physical or USB access can read them back. Use a dedicated MQTT user with a limited ACL so a leaked credential can't reach the rest of your broker. Before reselling or disposing of the device, run `idf.py erase-flash` to wipe stored credentials.
+
 ---
 
 ## Configuration

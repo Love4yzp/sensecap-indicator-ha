@@ -144,7 +144,7 @@ static void _mqtt_ha_start(instance_mqtt *instance)
     ESP_LOGI(TAG, "| Broker Address               | %-40s |", hf_cfg.broker_url);
     ESP_LOGI(TAG, "| Client ID                    | %-40s |", hf_cfg.client_id);
     ESP_LOGI(TAG, "| username                     | %-40s |", hf_cfg.username);
-    ESP_LOGI(TAG, "| password                     | %-40s |", hf_cfg.password);
+    ESP_LOGI(TAG, "| password                     | %-40s |", hf_cfg.password[0] ? "****" : "(not set)");
 
     instance->mqtt_client = esp_mqtt_client_init(instance->mqtt_cfg);
     if (instance->mqtt_client == NULL) {
