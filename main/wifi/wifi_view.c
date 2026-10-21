@@ -16,6 +16,13 @@ LV_IMAGE_DECLARE(ui_img_wifi_disconet_png);
 static const char *TAG = "wifi-view";
 
 static wifi_list_screen_t    *s_list_screen    = NULL;
+/* Ownership rule: the connect/details screen owns its own lifetime — show()
+ * allocates it and _dismiss() frees it exactly once. This handle is cleared in
+ * ONE place only: the _connect_screen_dismissed() callback, which the screen
+ * fires from every dismiss path (Cancel, Join, details Delete, programmatic
+ * dismiss). Never free/lv_obj_delete this here and never NULL it by hand — to
+ * close the dialog call wifi_connect_screen_dismiss() and let the callback
+ * clear it. The `!= NULL` guards below rely on this to detect an open dialog. */
 static wifi_connect_screen_t *s_connect_screen = NULL;
 static lv_obj_t              *s_wifi_modal     = NULL;
 static lv_obj_t              *s_wifi_spinner   = NULL;
@@ -23,6 +30,12 @@ static lv_obj_t              *s_wifi_icon      = NULL;
 
 static void _on_connected_tap(lv_event_t *e);
 static void _on_unconnected_tap(lv_event_t *e);
+
+/* Sole clearer of s_connect_screen; registered on the screen right after show. */
+static void _connect_screen_dismissed(void *user_data) {
+    (void)user_data;
+    s_connect_screen = NULL;
+}
 
 /* ── local wifi modal ───────────────────────────────────────────────── */
 
@@ -35,8 +48,9 @@ static bool s_wifi_scan_pending = false;
 
 static void _hide_wifi_modal(void) {
     if(s_connect_screen) {
+        /* _dismiss() fires _connect_screen_dismissed(), which NULLs the handle
+         * before teardown — so this is reentrancy-safe and clears itself.     */
         wifi_connect_screen_dismiss(s_connect_screen);
-        s_connect_screen = NULL;
     }
     if(s_wifi_modal) {
         lv_obj_add_flag(s_wifi_modal, LV_OBJ_FLAG_HIDDEN);
@@ -167,6 +181,7 @@ static void _on_unconnected_tap(lv_event_t *e) {
     const char *ssid = wifi_list_screen_get_item_ssid(s_list_screen, btn);
     bool have_password = (lv_obj_get_child_cnt(btn) > 2);
     s_connect_screen = wifi_connect_screen_show(ssid, have_password);
+    wifi_connect_screen_set_dismiss_cb(s_connect_screen, _connect_screen_dismissed, NULL);
 }
 
 static void _on_connected_tap(lv_event_t *e) {
@@ -177,6 +192,7 @@ static void _on_connected_tap(lv_event_t *e) {
     lv_obj_t *btn = lv_event_get_target_obj(e);
     const char *ssid = wifi_list_screen_get_item_ssid(s_list_screen, btn);
     s_connect_screen = wifi_details_screen_show(ssid);
+    wifi_connect_screen_set_dismiss_cb(s_connect_screen, _connect_screen_dismissed, NULL);
 }
 
 /* ── connection result toast ─────────────────────────────────────────── */
@@ -251,11 +267,11 @@ static void _view_event_handler(void *handler_args, esp_event_base_t base,
             break;
 
         case VIEW_EVENT_WIFI_CONNECT:
-            /* Model picks this up to connect; view shows spinner. */
+            /* Model picks this up to connect; view shows spinner. The dialog has
+             * already cleared s_connect_screen via its dismiss callback. */
             lv_port_sem_take();
             _ensure_wifi_modal();
             wifi_list_screen_show_spinner(s_list_screen);
-            s_connect_screen = NULL; /* already dismissed by connect_screen itself */
             lv_port_sem_give();
             break;
 
