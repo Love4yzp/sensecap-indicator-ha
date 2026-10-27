@@ -44,7 +44,7 @@ Firmware that turns the [Seeed Studio SenseCAP Indicator](https://www.seeedstudi
 
 ## Quick Start
 
-**Prerequisites:** ESP-IDF v5.4.x installed with `IDF_PATH` exported in your shell (see [ESP-IDF setup](https://docs.espressif.com/projects/esp-idf/en/v5.4/esp32s3/get-started/)).
+**Prerequisites:** the fixed ESP-IDF v5.5.6 tag installed with `IDF_PATH` exported in your shell. The component manifest rejects other IDF versions.
 
 ```bash
 git clone <this-repo>
@@ -147,7 +147,7 @@ See also: [Seeed wiki — Home Assistant application guide](https://wiki.seeedst
 
 ### ESP32-S3 (main firmware)
 
-**Prerequisites:** ESP-IDF v5.4.x with `IDF_PATH` exported.
+**Prerequisites:** ESP-IDF v5.5.6 with `IDF_PATH` exported.
 
 ```bash
 ./dev build          # idf.py build
@@ -239,8 +239,9 @@ cmake -S sim -B sim/build && cmake --build sim/build -j4
 |-----------|---------|
 | Firmware (ESP32-S3) | `v1.1.0` |
 | Coprocessor (RP2040) | `v2.1.0` |
-| ESP-IDF | `v5.4.x` |
-| LVGL | `v9.x` (managed component) |
+| ESP-IDF | `v5.5.6` |
+| LVGL | `v9.6.0~1` (managed component) |
+| esp_lvgl_port | `v2.9.0` (managed component) |
 | RP2040 build system | PlatformIO |
 
 <details>

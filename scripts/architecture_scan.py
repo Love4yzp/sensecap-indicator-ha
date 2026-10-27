@@ -149,6 +149,60 @@ BSP_INCLUDE_RE = re.compile(r"#\s*include\s+[<\"](bsp_[^>\"]+)[>\"]")
 SERVICE_CALLBACK_RE = re.compile(r"\b([a-zA-Z0-9_]+_register_(?:cb|callback))\s*\(")
 
 
+def mask_c_non_code(text: str) -> str:
+    """Mask comments and literals while preserving offsets and line numbers."""
+    result = list(text)
+    state = "code"
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+
+        if state == "code":
+            if char == "/" and next_char == "/":
+                result[index] = result[index + 1] = " "
+                state = "line_comment"
+                index += 2
+                continue
+            if char == "/" and next_char == "*":
+                result[index] = result[index + 1] = " "
+                state = "block_comment"
+                index += 2
+                continue
+            if char == '"':
+                result[index] = " "
+                state = "string"
+            elif char == "'":
+                result[index] = " "
+                state = "char"
+        elif state == "line_comment":
+            if char == "\n":
+                state = "code"
+            else:
+                result[index] = " "
+        elif state == "block_comment":
+            if char == "*" and next_char == "/":
+                result[index] = result[index + 1] = " "
+                state = "code"
+                index += 2
+                continue
+            if char != "\n":
+                result[index] = " "
+        elif state in {"string", "char"}:
+            result[index] = " " if char != "\n" else "\n"
+            if char == "\\" and next_char:
+                result[index + 1] = " " if next_char != "\n" else "\n"
+                index += 2
+                continue
+            if (state == "string" and char == '"') or (state == "char" and char == "'"):
+                state = "code"
+
+        index += 1
+
+    return "".join(result)
+
+
 def rel_key(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
@@ -261,7 +315,8 @@ def scan_ha_switch_squareline_bindings(path: Path, text: str, findings: list[Fin
 def scan_lvgl_calls(path: Path, text: str, findings: list[Finding]) -> None:
     if is_view_file(path):
         return
-    for match in LVGL_CALL_RE.finditer(text):
+    code_text = mask_c_non_code(text)
+    for match in LVGL_CALL_RE.finditer(code_text):
         symbol = match.group(1)
         add_symbol_finding(
             findings,

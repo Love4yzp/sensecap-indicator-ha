@@ -4,7 +4,7 @@ Scope: SenseCAP Indicator Home Assistant firmware, with emphasis on the ESP32S3 
 
 ## Stack
 
-- ESP-IDF 5.4.x
+- ESP-IDF v5.5.6 (fixed implementation baseline)
 - ESP32-S3 owns display, touch, Wi-Fi, MQTT, Home Assistant control logic, command console, display settings, and UART ingress from RP2040.
 - RP2040 owns onboard/Grove sensor acquisition.
 - LVGL 9 is managed by ESP Component Manager. The runtime UI is handwritten in domain view/screen components under `main/`, with reusable image/font assets under `main/assets/`.

@@ -6,7 +6,7 @@ Agent 开发指南。在修改代码之前请先读完本文件。
 
 ## 项目概述
 
-ESP32-S3 + RP2040 固件，LVGL 9.5.0（ESP Component Manager 管理），ESP-IDF 5.4.3，FreeRTOS。
+ESP32-S3 + RP2040 固件，LVGL 9.6.0~1（ESP Component Manager 管理），ESP-IDF v5.5.6，FreeRTOS。
 显示屏：480×480 RGB565，触摸输入。Home Assistant 通过 MQTT 集成。
 
 ---
