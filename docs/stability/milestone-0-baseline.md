@@ -71,8 +71,9 @@ test for that behavior.
 The first full build resolved LVGL `9.6.0~1` and esp_lvgl_port `2.9.0`. Only
 after that successful build were the exact manifest constraints and lock file
 added. Subsequent clean builds with those pins succeeded with the same size
-metrics. The hashes below are from the final verified build; application and
-bootloader hashes can change when embedded project/version metadata changes.
+metrics. Application and bootloader hashes are evidence snapshots, not the
+reproducibility criterion: they can change with embedded build/version
+metadata even when dependency versions and size metrics are unchanged.
 
 ## Build result
 
@@ -89,11 +90,11 @@ bootloader hashes can change when embedded project/version metadata changes.
 | DIRAM | 146,239 / 341,760 bytes (42.79%) |
 | IRAM | 16,384 / 16,384 bytes (100%; configured layout) |
 
-Artifact SHA-256 values from the final verified clean build:
+Artifact SHA-256 values from the clean verification build of commit `2da1c85`:
 
 ```text
-indicator_ha.bin              7aac6cb89f1d584ee81e8c0aacee5374415a544928d7d725f21a90c6a2010411
-bootloader/bootloader.bin     9414af51bbc733033a0434cb2221f8717ab70347d974a198a95a9525fd82c968
+indicator_ha.bin              f14be01179076a59bc62eaf0af15b33c54f453385fa312fccf364621adb7783f
+bootloader/bootloader.bin     d83ac08a431f179a0b07925e844befab5514f64899c89c26da98dc0add25aacd
 partition-table.bin           a7dfdccd649702098427a73dbc716db3ff9e51753271738f1d9d1f9ba0a5c67d
 ```
 
