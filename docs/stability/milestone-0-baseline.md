@@ -120,7 +120,14 @@ Host checks and full firmware builds are automated through
 `scripts/dev_check.py`. Hardware smoke remains manual and must be recorded
 against `hardware-smoke-checklist.md`.
 
-Not run during this software-only baseline:
+The physical-device run completed on 2026-10-27 with result
+**PASS WITH OPEN ITEMS**. See
+[`milestone-0-hardware-results.md`](milestone-0-hardware-results.md) for the
+flashed artifact hashes, environment, evidence, uncovered paths, and test-host
+cleanup record.
+
+The following items were not run during the original software-only baseline;
+their later hardware disposition is recorded in the linked result:
 
 - flashing or serial boot-log capture;
 - LCD, touch, backlight, sleep/wake, or factory-reset hardware tests;
