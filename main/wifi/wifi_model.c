@@ -1,4 +1,5 @@
 #include "wifi_model.h"
+#include "view_event.h"
 #include "esp_log.h"
 
 #include "freertos/FreeRTOS.h"
@@ -85,14 +86,13 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 			st.is_connecting = false;
 			_wifi_st_set(&st);
 
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
-							  sizeof(struct view_data_wifi_st), portMAX_DELAY);
+			view_event_publish_state(
+				VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 			struct view_data_wifi_connet_ret_msg msg;
 			msg.ret = 0;
 			strcpy(msg.msg, "Connection successful");
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg),
-							  portMAX_DELAY);
+			view_event_post_command(VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg));
 			break;
 		}
 		case WIFI_EVENT_STA_DISCONNECTED:
@@ -115,14 +115,13 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 				st.is_connecting = false;
 				_wifi_st_set(&st);
 
-				esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st,
-								  sizeof(struct view_data_wifi_st), portMAX_DELAY);
+				view_event_publish_state(
+					VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 				struct view_data_wifi_connet_ret_msg msg;
 				msg.ret = 1;
 				strcpy(msg.msg, "Connection failure");
-				esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg),
-								  portMAX_DELAY);
+				view_event_post_command(VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg));
 			}
 			break;
 		}
@@ -203,8 +202,8 @@ static void _wifi_cfg_restore(void) {
 	st.is_network = false;
 	_wifi_st_set(&st);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
-					  portMAX_DELAY);
+	view_event_publish_state(
+		VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 	esp_wifi_restore();
 }
@@ -218,8 +217,8 @@ static void _wifi_shutdown(void) {
 	st.is_network = false;
 	_wifi_st_set(&st);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
-					  portMAX_DELAY);
+	view_event_publish_state(
+		VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 	esp_wifi_stop();
 }
@@ -270,8 +269,8 @@ static void _ping_end(esp_ping_handle_t hdl, void* args) {
 		st.is_network = false;
 		_wifi_st_set(&st);
 	}
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st),
-					  portMAX_DELAY);
+	view_event_publish_state(
+		VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 	_g_ping_done = true;
 }
 
@@ -339,7 +338,8 @@ static void _indicator_wifi_task(void* p_arg) {
 	}
 }
 
-static void _view_event_handler(void* handler_args, esp_event_base_t base, int32_t id, void* event_data) {
+static void _view_event_handler(
+	void* handler_args, enum view_event_id id, const void* event_data) {
 	switch(id)
 	{
 		case VIEW_EVENT_WIFI_LIST_REQ:
@@ -391,8 +391,8 @@ static void _view_event_handler(void* handler_args, esp_event_base_t base, int32
 				}
 			}
 			list.cnt = list_cnt;
-			esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, &list,
-							  sizeof(struct view_data_wifi_list), portMAX_DELAY);
+			view_event_post_command(
+				VIEW_EVENT_WIFI_LIST, &list, sizeof(struct view_data_wifi_list));
 
 			break;
 		}
@@ -454,17 +454,14 @@ int indicator_wifi_model_init(void) {
 	ESP_ERROR_CHECK(
 		esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &_ip_event_handler, 0, &instance_got_ip));
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ, _view_event_handler, NULL, NULL));
-
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT, _view_event_handler, NULL, NULL));
-
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE, _view_event_handler, NULL, NULL));
-
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SHUTDOWN,
-															 _view_event_handler, NULL, NULL));
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_WIFI_LIST_REQ, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_WIFI_CONNECT, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_WIFI_CFG_DELETE, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_SHUTDOWN, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 
 	wifi_config_t wifi_cfg;
 	esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
@@ -482,8 +479,8 @@ int indicator_wifi_model_init(void) {
 		uint8_t screen = SCREEN_WIFI_CONFIG;
 		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 		ESP_ERROR_CHECK(esp_wifi_start());
-		esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_START, &screen, sizeof(screen),
-						  portMAX_DELAY);
+		view_event_post_command(
+			VIEW_EVENT_SCREEN_START, &screen, sizeof(screen));
 	}
 
 	return 0;

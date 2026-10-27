@@ -17,7 +17,7 @@ function(collect_sources source_var)
 endfunction()
 
 # Define a list of directories to include
-set(DIRECTORIES_TO_INCLUDE "util" "ha" "wifi" "sensor" "display" "settings" "rp2040" "btn" "mqtt" "storage" "cmd" "nav" "assets") # Recursively access folders | only modify here could be better
+set(DIRECTORIES_TO_INCLUDE "util" "ha" "wifi" "sensor" "display" "settings" "rp2040" "btn" "mqtt" "storage" "cmd" "nav" "assets" "view_event") # Recursively access folders | only modify here could be better
 
 # Call the custom function to collect the source files
 collect_sources(COLLECTED_SOURCES ${DIRECTORIES_TO_INCLUDE})

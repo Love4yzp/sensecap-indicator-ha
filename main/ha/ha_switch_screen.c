@@ -5,6 +5,7 @@
 #include "lv_port.h"
 #include "nav.h"
 #include "view_data.h"
+#include "view_event.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -112,10 +113,10 @@ static void _post_switch_value(int index, int value)
     };
 
     ESP_LOGI(TAG, "switch%d: %d", index + 1, value);
-    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST,
-                                      &switch_data, sizeof(switch_data), portMAX_DELAY);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "failed to post switch event: %s", esp_err_to_name(err));
+    view_event_delivery_t result = view_event_post_command(
+        VIEW_EVENT_HA_SWITCH_ST, &switch_data, sizeof(switch_data));
+    if (result != VIEW_EVENT_DELIVERY_ENQUEUED) {
+        ESP_LOGE(TAG, "failed to post switch event: delivery=%d", (int)result);
     }
 }
 

@@ -1,8 +1,10 @@
 #include "wifi_view.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "wifi_list_screen.h"
 #include "wifi_connect_screen.h"
 #include "view_data.h"
+#include "view_event.h"
 #include "lv_port.h"
 #include "indicator_util.h"
 #include "nav.h"
@@ -123,8 +125,7 @@ static void _show_wifi_modal(void) {
     wifi_list_screen_show_spinner(s_list_screen);
 
     s_wifi_scan_pending = true;
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                      VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
+    view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
 }
 
 static void _on_wifi_icon_clicked(lv_event_t *e) {
@@ -209,8 +210,8 @@ static void _show_connect_result(struct view_data_wifi_connet_ret_msg *p_msg) {
 
 /* ── event handler ───────────────────────────────────────────────────── */
 
-static void _view_event_handler(void *handler_args, esp_event_base_t base,
-                                 int32_t id, void *event_data) {
+static void _view_event_handler(
+    void *handler_args, enum view_event_id id, const void *event_data) {
     switch(id) {
         case VIEW_EVENT_SCREEN_START: {
             uint8_t screen = *(uint8_t *)event_data;
@@ -292,8 +293,7 @@ static void _view_event_handler(void *handler_args, esp_event_base_t base,
             if(!modal_visible) break;
 
             /* Refresh list then show result toast. */
-            esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                              VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
+            view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
 
             lv_port_sem_take();
             _show_connect_result(p_data);
@@ -312,37 +312,22 @@ int indicator_wifi_view_init(void) {
     _ensure_wifi_status_icon();
     lv_port_sem_give();
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_START,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_START,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT,
-        _view_event_handler, NULL, NULL));
-
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE,
-        _view_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_ST, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_LIST, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_SCREEN_START, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_CONNECT_RET, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_LIST_START, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_LIST_REQ, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_CONNECT, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_CFG_DELETE, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 
     return 0;
 }

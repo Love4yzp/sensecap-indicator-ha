@@ -3,6 +3,7 @@
 #include "ha_config.h"
 #include "ha_mqtt.h"
 #include "view_data.h"
+#include "view_event.h"
 #include "home_assistant_config.h"
 #include "storage_nvs.h"
 #include "lv_port.h"
@@ -78,8 +79,7 @@ static void _on_broker_confirm(lv_event_t *e)
         return;
     }
 
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                      VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, 0, portMAX_DELAY);
+    view_event_post_command(VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, 0);
 }
 
 static void _on_ip_textarea_clicked(lv_event_t *e)
@@ -274,7 +274,8 @@ static void handle_mqtt_addr_change(const char *new_broker_ip)
     show_message_box("Broker IP updated successfully", lv_palette_main(LV_PALETTE_GREEN));
 }
 
-static void view_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
+static void view_event_handler(
+    void *handler_args, enum view_event_id id, const void *event_data)
 {
     lv_port_sem_take();
 
@@ -347,7 +348,10 @@ esp_err_t ha_cfg_set(ha_cfg_interface *cfg)
 
 void ha_config_view_init(void)
 {
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_START, view_event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_MQTT_ADDR_CHANGED, view_event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_ADDR_DISPLAY, view_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_SCREEN_START, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_MQTT_ADDR_CHANGED, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_HA_ADDR_DISPLAY, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 }

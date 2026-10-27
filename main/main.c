@@ -13,12 +13,11 @@
 // limitations under the License.
 
 #include "bsp_board.h"
-#include "esp_event.h"
-#include "esp_event_base.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lv_port.h"
+#include "view_event.h"
 
 #define VERSION		 "v1.1.0"
 #define LOG_MEM_INFO 1
@@ -36,9 +35,6 @@
 
 #include "indicator_enabler.h"
 
-ESP_EVENT_DEFINE_BASE(VIEW_EVENT_BASE);
-esp_event_loop_handle_t view_event_handle;
-
 extern void indicator_view_init(void);
 extern void indicator_model_init(void);
 
@@ -52,23 +48,11 @@ void app_main(void) {
 	ESP_ERROR_CHECK(bsp_board_init());
 	lv_port_init();
 
-	esp_event_loop_args_t view_event_task_args = {
-		.queue_size = 10,
-		.task_name = "view_event_task",
-		.task_priority = uxTaskPriorityGet(NULL),
-		.task_stack_size = 10240,
-		.task_core_id = tskNO_AFFINITY};
-
-	ESP_ERROR_CHECK(
-		esp_event_loop_create(&view_event_task_args, &view_event_handle));
+	ESP_ERROR_CHECK(view_event_init() ? ESP_OK : ESP_FAIL);
 
 	indicator_view_init();
 
 	indicator_model_init();
-
-	// esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-	// 				  VIEW_EVENT_WIFI_LIST_REQ, NULL, 0,
-	// 				  portMAX_DELAY); /*send to wifi view*/
 
 #if LOG_MEM_INFO
 	// static char buffer[128];    /* Make sure buffer is enough for `sprintf`

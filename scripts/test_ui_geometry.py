@@ -74,7 +74,8 @@ class UiGeometryTests(unittest.TestCase):
         post_screen_end = settings_text.index("static void settings_open_wifi")
         post_screen_body = settings_text[post_screen_start:post_screen_end]
         self.assertNotIn("settings_hide_modal();", post_screen_body)
-        self.assertIn("esp_event_post_to", post_screen_body)
+        self.assertIn("view_event_post_command", post_screen_body)
+        self.assertNotIn("esp_event_post_to", post_screen_body)
 
     def test_temperature_unit_uses_product_degree_symbol(self) -> None:
         offenders: list[str] = []

@@ -1,7 +1,9 @@
 #include "display_model.h"
 #include "esp_log.h"
 #include "storage_nvs.h"
+#include "view_event.h"
 
+#include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
 #include <nvs.h>
@@ -133,8 +135,7 @@ static void _sleep_mode_timer_callback(void* arg) {
 
 	bool st = 0;
 	st = 0;
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st),
-					  portMAX_DELAY);
+	view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
 }
 
 static void _timer_stop(void) {
@@ -215,8 +216,8 @@ static void _display_cfg_restore(void) {
 	}
 }
 
-static void _view_event_handler(void* handler_args, esp_event_base_t base, int32_t id,
-								 void* event_data) {
+static void _view_event_handler(
+	void* handler_args, enum view_event_id id, const void* event_data) {
 	switch(id)
 	{
 		case VIEW_EVENT_BRIGHTNESS_UPDATE:
@@ -263,16 +264,12 @@ int indicator_display_init(void) {
 
 	_sleep_mode_init(cfg.sleep_mode_en, cfg.sleep_mode_time_min);
 
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_DISPLAY_CFG, &cfg, sizeof(cfg),
-					  portMAX_DELAY);
+	view_event_publish_state(VIEW_EVENT_DISPLAY_CFG, &cfg, sizeof(cfg));
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE,
-															 VIEW_EVENT_BRIGHTNESS_UPDATE,
-															 _view_event_handler, NULL, NULL));
-
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE,
-															 VIEW_EVENT_DISPLAY_CFG_APPLY,
-															 _view_event_handler, NULL, NULL));
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_BRIGHTNESS_UPDATE, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_DISPLAY_CFG_APPLY, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 	init_done_flag = true;
 	return 0;
 }

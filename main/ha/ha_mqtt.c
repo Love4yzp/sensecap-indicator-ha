@@ -8,6 +8,7 @@
 #include "esp_event.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "view_event.h"
 
 static const char *TAG = "ha-model";
 
@@ -79,7 +80,8 @@ static void handle_wifi_status_change(const struct view_data_wifi_st *wifi_statu
     }
 }
 
-static void view_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
+static void view_event_handler(
+    void *handler_args, enum view_event_id id, const void *event_data)
 {
     if (id == VIEW_EVENT_WIFI_ST) {
         ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_ST");
@@ -188,8 +190,9 @@ int indicator_ha_model_init(void)
     };
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register_with(ha_cfg_event_handle, HA_CFG_EVENT_BASE, ESP_EVENT_ANY_ID, _cfg_event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, view_event_handler, NULL, NULL));
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_ADDR_DISPLAY, NULL, 0, portMAX_DELAY);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_ST, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    view_event_publish_state(VIEW_EVENT_HA_ADDR_DISPLAY, NULL, 0);
     return ESP_OK;
 }
 

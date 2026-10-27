@@ -9,8 +9,10 @@
 
 #include "display_model.h"
 #include "display_view.h"
+#include "esp_err.h"
 #include "lv_port.h"
 #include "view_data.h"
+#include "view_event.h"
 #include <esp_log.h>
 #include "sdkconfig.h"
 
@@ -317,8 +319,8 @@ void brighness_cfg_event_cb(lv_event_t* e) // Value changed
 {
 	lv_obj_t* slider = lv_event_get_target_obj(e);
 	int32_t value = lv_slider_get_value(slider);
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_BRIGHTNESS_UPDATE, &value,
-					  sizeof(value), portMAX_DELAY);
+	view_event_publish_state(
+		VIEW_EVENT_BRIGHTNESS_UPDATE, &value, sizeof(value));
 }
 
 // static void _display_cfg_apply_event_cb(lv_event_t * e)
@@ -331,8 +333,8 @@ void display_cfg_apply_event_cb(lv_event_t* e) // defocused the textarea
 		return;
 	}
 	_display_cfg_from_widgets(&cfg);
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_DISPLAY_CFG_APPLY, &cfg,
-					  sizeof(cfg), portMAX_DELAY);
+	view_event_post_command(
+		VIEW_EVENT_DISPLAY_CFG_APPLY, &cfg, sizeof(cfg));
 }
 
 void brighness_update_callback(lv_event_t* e) {
@@ -342,8 +344,8 @@ void brighness_update_callback(lv_event_t* e) {
 	_apply_display_cfg_to_widgets(&cfg);
 }
 
-static void _view_event_handler(void* handler_args, esp_event_base_t base,
-								int32_t id, void* event_data) {
+static void _view_event_handler(
+	void* handler_args, enum view_event_id id, const void* event_data) {
 	switch(id)
 	{
 		case VIEW_EVENT_SCREEN_START:
@@ -380,13 +382,10 @@ static void _view_event_handler(void* handler_args, esp_event_base_t base,
 }
 
 int indicator_display_view_init(void) {
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_START,
-		_view_event_handler, NULL, NULL));
-
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_DISPLAY_CFG,
-		_view_event_handler, NULL, NULL));
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_SCREEN_START, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_DISPLAY_CFG, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 
 	return 0;
 }

@@ -28,6 +28,8 @@ def main() -> int:
     args = parser.parse_args()
 
     print("\n==> Host checks", flush=True)
+    run("View event delivery", ["python3", "scripts/test_view_event_delivery.py"])
+    run("Button press state", ["python3", "scripts/test_button_press_state.py"])
     run("Architecture scan unit tests", ["python3", "scripts/test_architecture_scan.py"])
     run("Architecture scan", ["python3", "scripts/architecture_scan.py"])
     run("RGB LCD config", ["python3", "scripts/test_lcd_rgb_config.py"])

@@ -5,6 +5,7 @@
 #include "rp2040.h"
 
 #include "view_data.h"
+#include "view_event.h"
 #define sensor_model_DEBUG 1
 // This defines an array of strings, one for each sensor type. The strings are
 // defined in the `SENSOR_TYPE_LIST` macro.
@@ -61,9 +62,10 @@ int update_sensor_data(const enum sensor_data_type type, uint8_t* p_data) {
 	};
 
 	// Change View
-	esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-					  VIEW_EVENT_SENSOR_DATA, /* Update sensor data for Sensor View */
-					  &v_data, sizeof(struct view_data_sensor_data), portMAX_DELAY);
+	view_event_publish_state(
+		VIEW_EVENT_SENSOR_DATA,
+		&v_data,
+		sizeof(struct view_data_sensor_data));
 
 	return SENSOR_OK;
 }

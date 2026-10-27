@@ -1,6 +1,7 @@
 #include "ha_switch.h"
 #include "ha_mqtt.h"
 #include "view_data.h"
+#include "view_event.h"
 #include "home_assistant_config.h"
 #include "cJSON.h"
 #include "storage_nvs.h"
@@ -87,7 +88,8 @@ static void restore_data_task(void *args)
 
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         struct view_data_ha_switch_data switch_data = {.index = i, .value = switch_state[i]};
-        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data), portMAX_DELAY);
+        view_event_post_command(
+            VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
 
         ESP_LOGI(TAG, "Restored switch %d state: %d", i, switch_state[i]);
 
@@ -99,7 +101,8 @@ static void restore_data_task(void *args)
     vTaskDelete(NULL);
 }
 
-static void view_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
+static void view_event_handler(
+    void *handler_args, enum view_event_id id, const void *event_data)
 {
     switch (id) {
         case VIEW_EVENT_HA_SWITCH_ST:
@@ -140,8 +143,10 @@ void ha_switch_init(void)
 
     ha_ctrl_cfg_restore();
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST, view_event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_SET, view_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_HA_SWITCH_ST, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_HA_SWITCH_SET, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 }
 
 void ha_switch_subscribe(esp_mqtt_client_handle_t client)
@@ -179,7 +184,8 @@ int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, i
             if (cjson_item != NULL && cJSON_IsNumber(cjson_item)) {
                 struct view_data_ha_switch_data switch_data = {.index = i, .value = cjson_item->valueint};
                 ESP_LOGI(TAG, "MQTT message: %s set to %d", ha_switch_entities[i].key, switch_data.value);
-                esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data), portMAX_DELAY);
+                view_event_post_command(
+                    VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
                 cJSON_Delete(root);
                 return 0;
             }
