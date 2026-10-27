@@ -94,26 +94,7 @@ OCCURRENCE_ALLOWLIST_REASONS: dict[tuple[str, str, str, str], str] = {
 }
 
 
-EVENT_COMMENT_ALLOWLIST_REASONS: dict[str, str] = {
-    "VIEW_EVENT_SENSOR_TEMP_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_SENSOR_HUMIDITY_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_SENSOR_TVOC_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_SENSOR_CO2_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_WIFI_CFG_DELETE": (
-        "existing Wi-Fi config delete event has no documented payload in current code"
-    ),
-    "VIEW_EVENT_HA_ADDR_DISPLAY": (
-        "existing Home Assistant address-display event lacks a payload comment"
-    ),
-}
+EVENT_COMMENT_ALLOWLIST_REASONS: dict[str, str] = {}
 
 
 VIEW_FILE_PATTERNS = (
@@ -147,6 +128,16 @@ HA_SWITCH_SCREEN_UI_INCLUDE_RE = re.compile(r"#\s*include\s*[<\"](?:ui/)?(?:ui|u
 HA_SWITCH_SCREEN_GLOBAL_RE = re.compile(r"\bui_switch(?:[0-9]|_btn3)\w*\b")
 BSP_INCLUDE_RE = re.compile(r"#\s*include\s+[<\"](bsp_[^>\"]+)[>\"]")
 SERVICE_CALLBACK_RE = re.compile(r"\b([a-zA-Z0-9_]+_register_(?:cb|callback))\s*\(")
+VIEW_EVENT_PRIVATE_INCLUDE_RE = re.compile(
+    r"#\s*include\s*[<\"]view_event_adapter\.h[>\"]"
+)
+VIEW_EVENT_LEGACY_TRANSPORT_RE = re.compile(
+    r"\b(view_event_handle|VIEW_EVENT_BASE)\b"
+)
+VIEW_EVENT_INTERNAL_TRANSPORT_RE = re.compile(r"\bVIEW_EVENT_TRANSPORT_BASE\b")
+ESP_EVENT_TRANSPORT_CALL_RE = re.compile(
+    r"\b(esp_event_post_to|esp_event_handler_instance_register_with)\s*\("
+)
 
 
 def mask_c_non_code(text: str) -> str:
@@ -348,7 +339,7 @@ def scan_shared_bsp_includes(path: Path, text: str, findings: list[Finding]) -> 
 
 
 def scan_event_payload_comments(path: Path, text: str, findings: list[Finding]) -> None:
-    if rel_key(path) not in {"main/view_data.h"}:
+    if rel_key(path) != "main/view_data_types.h":
         return
     for idx, line in enumerate(text.splitlines(), start=1):
         match = EVENT_ENUM_RE.match(line)
@@ -385,6 +376,52 @@ def scan_service_callbacks(path: Path, text: str, findings: list[Finding]) -> No
         )
 
 
+def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None:
+    """Keep view-event transport details behind the module's internal adapter."""
+    rel = rel_key(path)
+    code_text = mask_c_non_code(text)
+    adapter_path = "main/view_event/view_event_esp_adapter.c"
+
+    if not rel.startswith("main/view_event/"):
+        for match in VIEW_EVENT_PRIVATE_INCLUDE_RE.finditer(text):
+            add_finding(
+                findings,
+                path,
+                line_number(text, match.start()),
+                "view-event-private-adapter",
+                "runtime code must use view_event.h, not the private adapter seam",
+            )
+
+    for match in VIEW_EVENT_LEGACY_TRANSPORT_RE.finditer(code_text):
+        add_finding(
+            findings,
+            path,
+            line_number(text, match.start()),
+            "view-event-legacy-transport",
+            f"{match.group(1)} bypasses the view_event module interface",
+        )
+
+    if rel != adapter_path:
+        for match in VIEW_EVENT_INTERNAL_TRANSPORT_RE.finditer(code_text):
+            add_finding(
+                findings,
+                path,
+                line_number(text, match.start()),
+                "view-event-internal-transport",
+                "the ESP Event transport base belongs only to the production adapter",
+            )
+
+    if rel.startswith("main/view_event/") and rel != adapter_path:
+        for match in ESP_EVENT_TRANSPORT_CALL_RE.finditer(code_text):
+            add_finding(
+                findings,
+                path,
+                line_number(text, match.start()),
+                "view-event-adapter-boundary",
+                f"{match.group(1)} belongs only in view_event_esp_adapter.c",
+            )
+
+
 def scan() -> list[Finding]:
     findings: list[Finding] = []
     for path in iter_source_files():
@@ -395,6 +432,7 @@ def scan() -> list[Finding]:
         scan_shared_bsp_includes(path, text, findings)
         scan_event_payload_comments(path, text, findings)
         scan_service_callbacks(path, text, findings)
+        scan_view_event_seam(path, text, findings)
     return findings
 
 

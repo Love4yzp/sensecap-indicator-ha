@@ -6,8 +6,8 @@ module's interface is the only supported way to publish or subscribe to
 replaceable state—but do not choose queue types, event-loop handles, retries,
 or timeouts.
 
-This document records the pre-change inventory before defining or implementing
-the module interface.
+This document records the pre-change inventory and the implemented stage-1
+contract.
 
 ## Pre-change transport
 
@@ -100,6 +100,77 @@ A controllable host-test adapter occupies the same internal seam as the ESP
 Event adapter. Tests drive queue-full and delayed-drain behavior through the
 module interface; the adapter seam remains private to the implementation.
 
+## Implemented module
+
+Public interface (`main/view_event/view_event.h`):
+
+```c
+bool view_event_init(void);
+bool view_event_subscribe(enum view_event_id, view_event_handler_t, void *);
+view_event_delivery_t view_event_post_command(
+    enum view_event_id, const void *payload, size_t payload_size);
+view_event_delivery_t view_event_publish_state(
+    enum view_event_id, const void *payload, size_t payload_size);
+void view_event_stats_get(struct view_event_stats *);
+```
+
+The interface is semantic rather than transport-shaped. Producers cannot see
+the ESP Event loop, FreeRTOS queue, adapter lock, or timeout. The module
+validates category and exact payload size before passing data through its
+internal adapter seam.
+
+The ESP production adapter keeps the existing queue depth (10) and task stack
+(10240 bytes). Critical commands use one module-owned 20 ms enqueue bound.
+Replaceable state uses a zero-wait token and module-owned state slots. Slot
+mutation and token acceptance are serialized so concurrent producers cannot
+report a coalesced value that has no queued delivery token.
+
+State keys are:
+
+- `VIEW_EVENT_SENSOR_DATA`: `sensor_type`;
+- `VIEW_EVENT_HA_SENSOR`: `index`;
+- all other state events: one latest value per event.
+
+`view_event_stats_get()` reports command enqueued/rejected/dispatched, state
+enqueued/coalesced/dropped/dispatched, and invalid publication counts. Rejected
+commands and dropped states also produce a centralized error log.
+
+`main/view_event/view_event_adapter.h` is an internal seam. The production
+adapter is `view_event_esp_adapter.c`; the host regression harness supplies a
+controllable adapter but invokes behavior through `view_event.h`.
+
+## Migrated runtime call sites
+
+The following domains now publish and subscribe only through the module
+interface:
+
+- boot initialization (`main/main.c`);
+- Wi-Fi model, view, list, and connect screens;
+- display model/view and settings navigation;
+- RP2040 shutdown consumer and sensor model/view;
+- MQTT network-state controller;
+- Home Assistant configuration, MQTT, sensor, switch controller, and switch
+  screen;
+- physical button screen-control, shutdown, and factory-reset paths.
+
+The MQTT controller's old `WIFI_EVENT_STA_DISCONNECTED` registration on the
+private view loop was not moved to the default Wi-Fi loop. That registration
+could never receive a Wi-Fi event on the old private loop; activating it now
+would be a behavior change. Network-false state continues to arrive through
+`VIEW_EVENT_WIFI_ST`.
+
+## Architecture enforcement
+
+`scripts/architecture_scan.py` now rejects:
+
+- the removed `view_event_handle` and `VIEW_EVENT_BASE` transport symbols;
+- includes of the private adapter outside `main/view_event/`;
+- use of the private transport base outside the production adapter;
+- direct ESP Event transport calls in the view-event core.
+
+The event enum is also checked for an inline payload and command/state policy
+comment. Unit tests cover each new boundary rule.
+
 ## Sleep/shutdown idempotency
 
 The current button code uses independent global flags and posts shutdown from
@@ -113,6 +184,30 @@ interface reports actions (`prepare sleep`, `restart`, `factory reset`, or
 action is emitted at most once per press and never after factory reset. The
 existing display-off preview, short-click restart, Wi-Fi stop, RP2040 shutdown,
 and restart behavior remain outside that module and unchanged.
+
+Implemented in `main/btn/button_press_state.[ch]`: each long-press start resets
+the per-press state; prepare-sleep, sleeping restart, factory reset, and
+shutdown are emitted at most once as appropriate. Release after factory reset
+cannot additionally emit shutdown. The existing consumers still own Wi-Fi stop
+and RP2040 shutdown behavior.
+
+## Host verification
+
+`scripts/test_view_event_delivery.py` verifies through the public interface
+that:
+
+- a simulated LVGL callback returns in under 100 ms when the controllable
+  adapter reports a full command queue;
+- a rejected command is attempted once and counted;
+- same-key sensor state coalesces while different keys retain separate
+  deliveries;
+- adapter-full state is dropped and counted;
+- invalid category/payload use is rejected;
+- the largest declared history payload fits the module contract.
+
+`scripts/test_button_press_state.py` verifies duplicate release idempotency,
+new-press reset, factory-reset/shutdown exclusion, and one restart action for a
+sleeping long hold.
 
 ## Explicitly deferred
 
