@@ -94,7 +94,6 @@ main/ui/components/
 # ignore project file
 sdkconfig
 sdkconfig.old
-dependencies.lock
 build
 
 # PlatformIO
