@@ -7,6 +7,7 @@
 #include "bsp_board.h"
 #include "bsp_lcd.h"
 #include "indev/indev.h"
+#include "lvgl_health/lvgl_health.h"
 #include "lv_port.h"
 #include "sdkconfig.h"
 
@@ -14,11 +15,13 @@
 #define LV_PORT_TASK_DELAY_MS        (5)
 #define LV_PORT_TASK_MAX_SLEEP_MS    (500)
 #define LV_PORT_TASK_STACK_SIZE      (8192)
+#define LV_PORT_HEALTH_HEARTBEAT_MS  (500)
 
 static const char *TAG = "lvgl_port";
 static lv_display_t *s_display = NULL;
 static lv_indev_t *s_indev_touchpad = NULL;
 static lv_indev_t *s_indev_button = NULL;
+static lv_timer_t *s_health_timer = NULL;
 
 #ifndef CONFIG_LCD_TASK_PRIORITY
 #define CONFIG_LCD_TASK_PRIORITY    5
@@ -26,6 +29,7 @@ static lv_indev_t *s_indev_button = NULL;
 
 static void lv_port_disp_init(void);
 static void lv_port_indev_init(void);
+static void health_heartbeat_cb(lv_timer_t *timer);
 static void button_read(lv_indev_t *indev, lv_indev_data_t *data);
 static void touchpad_read(lv_indev_t *indev, lv_indev_data_t *data);
 
@@ -41,6 +45,39 @@ void lv_port_init(void)
     ESP_ERROR_CHECK(lvgl_port_init(&lvgl_cfg));
     lv_port_disp_init();
     lv_port_indev_init();
+
+    if (lvgl_port_lock(1000)) {
+        s_health_timer = lv_timer_create(
+            health_heartbeat_cb, LV_PORT_HEALTH_HEARTBEAT_MS, NULL);
+        lvgl_port_unlock();
+    }
+    if (s_health_timer == NULL) {
+        ESP_LOGE(TAG, "Failed to create LVGL health heartbeat");
+        return;
+    }
+
+    const esp_err_t health_result = lvgl_health_start();
+    if (health_result != ESP_OK) {
+        ESP_LOGE(
+            TAG,
+            "Failed to start LVGL health diagnostics: %s",
+            esp_err_to_name(health_result));
+        if (lvgl_port_lock(1000)) {
+            lv_timer_delete(s_health_timer);
+            s_health_timer = NULL;
+            lvgl_port_unlock();
+        }
+        return;
+    }
+
+    const esp_err_t wake_result =
+        lvgl_port_task_wake(LVGL_PORT_EVENT_USER, NULL);
+    if (wake_result != ESP_OK) {
+        ESP_LOGW(
+            TAG,
+            "Failed to wake LVGL task after health start: %s",
+            esp_err_to_name(wake_result));
+    }
 }
 
 void lv_port_sem_take(void)
@@ -51,6 +88,12 @@ void lv_port_sem_take(void)
 void lv_port_sem_give(void)
 {
     lvgl_port_unlock();
+}
+
+static void health_heartbeat_cb(lv_timer_t *timer)
+{
+    (void)timer;
+    lvgl_health_heartbeat();
 }
 
 static void button_read(lv_indev_t *indev, lv_indev_data_t *data)

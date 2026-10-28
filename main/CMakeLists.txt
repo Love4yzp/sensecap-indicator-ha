@@ -27,6 +27,8 @@ collect_sources(COLLECTED_SOURCES ${DIRECTORIES_TO_INCLUDE})
 list(FILTER COLLECTED_SOURCES EXCLUDE REGEX "(^|/)ha/ha_switch_sync\\.c$")
 set(EXPLICIT_DOMAIN_SOURCES
   "ha/ha_switch_sync.c"
+  "lvgl_health/lvgl_health.c"
+  "lvgl_health/lvgl_health_state.c"
 )
 
 # Register the component
