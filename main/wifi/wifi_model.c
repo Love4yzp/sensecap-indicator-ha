@@ -52,6 +52,29 @@ static void _wifi_st_get(struct view_data_wifi_st* p_st) {
 	xSemaphoreGive(_g_data_mutex);
 }
 
+static bool _wifi_st_try_get(struct view_data_wifi_st* p_st) {
+	if(xSemaphoreTake(_g_data_mutex, 0) != pdTRUE)
+	{
+		return false;
+	}
+	memcpy(p_st, &_g_wifi_model.st, sizeof(struct view_data_wifi_st));
+	xSemaphoreGive(_g_data_mutex);
+	return true;
+}
+
+static void _wifi_scan_report_failure(const char* reason) {
+	view_event_delivery_t delivery =
+		view_event_post_command(VIEW_EVENT_WIFI_LIST_FAILED, NULL, 0);
+	if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
+	{
+		ESP_LOGE(
+			TAG,
+			"%s; failure notification rejected: delivery=%d",
+			reason,
+			(int)delivery);
+	}
+}
+
 static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
 	switch(event_id)
 	{
@@ -338,10 +361,15 @@ static void _view_event_handler(
 		{
 			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_LIST_REQ");
 			struct view_data_wifi_st st;
-			_wifi_st_get(&st);
+			if(!_wifi_st_try_get(&st))
+			{
+				_wifi_scan_report_failure("wifi state snapshot busy");
+				break;
+			}
 			if(!wifi_scan_worker_request(&st))
 			{
 				ESP_LOGE(TAG, "wifi scan request rejected by worker");
+				_wifi_scan_report_failure("wifi scan worker busy");
 			}
 			break;
 		}

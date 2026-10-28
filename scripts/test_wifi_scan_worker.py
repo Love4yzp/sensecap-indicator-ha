@@ -28,8 +28,10 @@ static wifi_scan_worker_execute_t execute_scan;
 static struct view_data_wifi_st pending;
 static bool has_pending;
 static bool adapter_busy;
+static bool scan_success;
 static unsigned scan_calls;
 static unsigned result_posts;
+static unsigned failure_posts;
 static unsigned retry_delays;
 static view_event_delivery_t result_deliveries[8];
 static unsigned result_delivery_count;
@@ -40,8 +42,10 @@ bool wifi_scan_worker_adapter_init(wifi_scan_worker_execute_t execute)
     execute_scan = execute;
     has_pending = false;
     adapter_busy = false;
+    scan_success = true;
     scan_calls = 0;
     result_posts = 0;
+    failure_posts = 0;
     retry_delays = 0;
     result_delivery_count = 0;
     return true;
@@ -62,6 +66,9 @@ bool wifi_scan_worker_adapter_scan(
 {
     assert(capacity >= 3);
     scan_calls++;
+    if (!scan_success) {
+        return false;
+    }
     records[0] = (struct wifi_scan_record){
         .ssid = "alpha", .auth_mode = true, .rssi = -40};
     records[1] = (struct wifi_scan_record){
@@ -88,6 +95,12 @@ static void drain(void)
 view_event_delivery_t view_event_post_command(
     enum view_event_id id, const void *payload, size_t payload_size)
 {
+    if (id == VIEW_EVENT_WIFI_LIST_FAILED) {
+        assert(payload == NULL);
+        assert(payload_size == 0);
+        failure_posts++;
+        return VIEW_EVENT_DELIVERY_ENQUEUED;
+    }
     assert(id == VIEW_EVENT_WIFI_LIST);
     assert(payload_size == sizeof(last_list));
     last_list = *(const struct view_data_wifi_list *)payload;
@@ -150,11 +163,22 @@ int main(void)
 
     result_deliveries[2] = VIEW_EVENT_DELIVERY_REJECTED;
     result_posts = 0;
+    failure_posts = 0;
     retry_delays = 0;
     assert(wifi_scan_worker_request(&first));
     drain();
     assert(result_posts == 3);
+    assert(failure_posts == 1);
     assert(retry_delays == 2);
+
+    scan_success = false;
+    result_posts = 0;
+    failure_posts = 0;
+    retry_delays = 0;
+    assert(wifi_scan_worker_request(&first));
+    drain();
+    assert(result_posts == 0);
+    assert(failure_posts == 1);
 
     return 0;
 }
@@ -198,6 +222,14 @@ class WifiScanWorkerTests(unittest.TestCase):
         handler = handler.split("int indicator_wifi_model_init", 1)[0]
         self.assertIn("wifi_scan_worker_request", handler)
         self.assertNotIn("esp_wifi_scan_start", handler)
+        list_request = handler.split(
+            "case VIEW_EVENT_WIFI_LIST_REQ:", 1
+        )[1].split("case VIEW_EVENT_WIFI_CONNECT:", 1)[0]
+        self.assertIn("_wifi_st_try_get", list_request)
+        self.assertNotIn("_wifi_st_get(", list_request)
+        snapshot = source.split("static bool _wifi_st_try_get", 1)[1]
+        snapshot = snapshot.split("\n}", 1)[0]
+        self.assertNotIn("portMAX_DELAY", snapshot)
 
     def test_view_scan_timeout_always_clears_pending_spinner(self) -> None:
         source = (ROOT / "main" / "wifi" / "wifi_view.c").read_text(
@@ -217,6 +249,13 @@ class WifiScanWorkerTests(unittest.TestCase):
         wifi_list = source.split("case VIEW_EVENT_WIFI_LIST:", 1)[1]
         wifi_list = wifi_list.split("case VIEW_EVENT_WIFI_CONNECT_RET:", 1)[0]
         self.assertIn("_wifi_scan_timeout_cancel();", wifi_list)
+        failed = source.split("case VIEW_EVENT_WIFI_LIST_FAILED:", 1)[1]
+        failed = failed.split("case VIEW_EVENT_WIFI_CONNECT_RET:", 1)[0]
+        self.assertIn("s_wifi_scan_pending = false;", failed)
+        self.assertIn("_wifi_scan_timeout_cancel();", failed)
+        self.assertIn(
+            "lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);", failed
+        )
 
 
 if __name__ == "__main__":

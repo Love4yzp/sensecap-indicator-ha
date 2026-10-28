@@ -331,6 +331,17 @@ static void _view_event_handler(
             lv_port_sem_give();
             break;
         }
+        case VIEW_EVENT_WIFI_LIST_FAILED:
+            ESP_LOGE(TAG, "event: VIEW_EVENT_WIFI_LIST_FAILED");
+            s_wifi_scan_pending = false;
+            lv_port_sem_take();
+            _wifi_scan_timeout_cancel();
+            if(s_wifi_spinner) {
+                lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);
+            }
+            lv_port_sem_give();
+            break;
+
         case VIEW_EVENT_WIFI_CONNECT_RET: {
             struct view_data_wifi_connet_ret_msg *p_data =
                 (struct view_data_wifi_connet_ret_msg *)event_data;
@@ -371,6 +382,8 @@ int indicator_wifi_view_init(void) {
         VIEW_EVENT_WIFI_ST, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
     ESP_ERROR_CHECK(view_event_subscribe(
         VIEW_EVENT_WIFI_LIST, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_LIST_FAILED, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
     ESP_ERROR_CHECK(view_event_subscribe(
         VIEW_EVENT_SCREEN_START, _view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
     ESP_ERROR_CHECK(view_event_subscribe(

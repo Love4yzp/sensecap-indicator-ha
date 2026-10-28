@@ -155,6 +155,7 @@ enum view_event_id {
     VIEW_EVENT_SENSOR_CO2_HISTORY,      // NULL trigger; state
     VIEW_EVENT_SENSOR_DATA_HISTORY,     // struct view_data_sensor_history_data; state
     VIEW_EVENT_WIFI_LIST,               // struct view_data_wifi_list; command result
+    VIEW_EVENT_WIFI_LIST_FAILED,        // NULL; command result
     VIEW_EVENT_WIFI_LIST_START,         // NULL; command notification
     VIEW_EVENT_WIFI_LIST_REQ,           // NULL; command
     VIEW_EVENT_WIFI_CONNECT,            // struct view_data_wifi_config; command
