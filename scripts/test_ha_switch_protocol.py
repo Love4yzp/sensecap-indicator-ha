@@ -107,41 +107,111 @@ class TestSwitchScreenDeliveryState(unittest.TestCase):
         self.source = (
             ROOT / "main" / "ha" / "ha_switch_screen.c"
         ).read_text(encoding="utf-8")
+        self.header = (
+            ROOT / "main" / "ha" / "ha_switch_screen.h"
+        ).read_text(encoding="utf-8")
 
-    def test_model_update_records_the_accepted_value_without_posting(self):
-        update = self.source.split(
-            "void ha_switch_screen_update", 1
-        )[1]
-        update = update.split("\n}", 1)[0]
-        self.assertIn("slot->accepted_value = value;", update)
-        self.assertIn("_apply_slot_value(slot, value);", update)
-
-    def test_programmatic_arc_and_slider_updates_suppress_command_post(self):
-        self.assertIn("bool suppress_post;", self.source)
-        for callback_name in ("_arc_event_cb", "_slider_event_cb"):
-            callback = self.source.split(
-                f"static void {callback_name}", 1
-            )[1].split("\n}", 1)[0]
-            suppress = callback.index("slot->suppress_post")
-            post = callback.index("_post_switch_value")
-            self.assertLess(suppress, post)
-
-        apply_value = self.source.split(
-            "static void _apply_slot_value", 1
-        )[1].split("\n}", 1)[0]
-        self.assertIn("slot->suppress_post = true;", apply_value)
-        self.assertIn("slot->update(", apply_value)
-        self.assertIn("slot->suppress_post = false;", apply_value)
-
-    def test_rejection_rollback_uses_suppressed_programmatic_update(self):
-        restore = self.source.split(
-            "static void _restore_slot_value", 1
-        )[1].split("\n}", 1)[0]
+    def test_screen_owns_model_and_publish_result_subscriptions(self):
+        self.assertNotIn("ha_switch_screen_update", self.header)
+        self.assertIn("VIEW_EVENT_HA_SWITCH_SET", self.source)
         self.assertIn(
-            "_apply_slot_value(slot, slot->accepted_value);", restore
+            "VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT", self.source
         )
-        self.assertNotIn("lv_arc_set_value", restore)
-        self.assertNotIn("lv_slider_set_value", restore)
+        self.assertGreaterEqual(
+            self.source.count("view_event_subscribe("), 2
+        )
+        handler = self.source.split(
+            "static void _view_event_handler", 1
+        )[1].split("\n}", 1)[0]
+        self.assertIn("lv_port_sem_take();", handler)
+        self.assertIn("lv_port_sem_give();", handler)
+
+    def test_continuous_controls_are_debounced_but_toggles_are_immediate(self):
+        self.assertIn("#define HA_SWITCH_DEBOUNCE_MS 200", self.source)
+        toggle = self.source.split(
+            "static void _switch_toggle_event_cb", 1
+        )[1].split("\n}", 1)[0]
+        arc = self.source.split(
+            "static void _arc_event_cb", 1
+        )[1].split("\n}", 1)[0]
+        slider = self.source.split(
+            "static void _slider_event_cb", 1
+        )[1].split("\n}", 1)[0]
+        self.assertIn("HA_SWITCH_SYNC_IMMEDIATE", toggle)
+        self.assertIn("HA_SWITCH_SYNC_DEBOUNCED", arc)
+        self.assertIn("HA_SWITCH_SYNC_DEBOUNCED", slider)
+        self.assertIn("lv_timer_reset", self.source)
+        self.assertIn("ha_switch_sync_debounce_elapsed", self.source)
+
+    def test_model_updates_and_results_use_generation_state(self):
+        self.assertIn("ha_switch_sync_t sync;", self.source)
+        self.assertNotIn("int accepted_value;", self.source)
+        self.assertIn("bool suppress_post;", self.source)
+        self.assertIn("ha_switch_sync_model_changed", self.source)
+        self.assertIn("ha_switch_sync_publish_result", self.source)
+        self.assertIn("#define HA_SWITCH_RESULT_TIMEOUT_MS 2000", self.source)
+        self.assertIn("_cancel_debounce_timer(slot);", self.source)
+        self.assertIn("_cancel_result_timer(slot);", self.source)
+
+
+class TestSwitchEventContract(unittest.TestCase):
+    def test_user_command_model_state_and_publish_result_are_distinct(self):
+        data_types = (
+            ROOT / "main" / "view_data_types.h"
+        ).read_text(encoding="utf-8")
+        view_event = (
+            ROOT / "main" / "view_event" / "view_event.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("struct view_data_ha_switch_command", data_types)
+        self.assertIn(
+            "struct view_data_ha_switch_publish_result", data_types
+        )
+        self.assertIn(
+            "VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT", data_types
+        )
+        self.assertIn(
+            "[VIEW_EVENT_HA_SWITCH_ST] =\n"
+            "        COMMAND(struct view_data_ha_switch_command)",
+            view_event,
+        )
+        self.assertIn(
+            "[VIEW_EVENT_HA_SWITCH_SET] = STATE_KEYED(\n"
+            "        struct view_data_ha_switch_data, "
+            "VIEW_EVENT_KEY_HA_SWITCH_INDEX)",
+            view_event,
+        )
+        self.assertIn(
+            "[VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT] =\n"
+            "        COMMAND(struct view_data_ha_switch_publish_result)",
+            view_event,
+        )
+
+    def test_switch_controller_is_ui_free_and_reports_publish_results(self):
+        controller = (
+            ROOT / "main" / "ha" / "ha_switch.c"
+        ).read_text(encoding="utf-8")
+        header = (
+            ROOT / "main" / "ha" / "ha_switch.h"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn('#include "lv_port.h"', controller)
+        self.assertNotIn('#include "ha_switch_screen.h"', header)
+        self.assertNotIn("ha_switch_attach_screen", controller)
+        self.assertNotIn("ha_switch_attach_screen", header)
+        self.assertIn("esp_mqtt_client_publish", controller)
+        self.assertIn("message_id >= 0", controller)
+        self.assertIn(
+            "VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT", controller
+        )
+        self.assertIn(
+            "view_event_publish_state(\n"
+            "                    VIEW_EVENT_HA_SWITCH_SET",
+            controller,
+        )
+        self.assertIn(
+            "switch_state[i] = switch_data.value;", controller
+        )
 
 
 if __name__ == "__main__":
