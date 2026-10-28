@@ -2,6 +2,8 @@
 
 Firmware that turns the [Seeed Studio SenseCAP Indicator](https://www.seeedstudio.com/SenseCAP-Indicator-D1-p-5643.html) into a Home Assistant companion panel. Connects to Wi-Fi, publishes built-in sensor data over MQTT, and renders on-screen controls that Home Assistant can drive both ways.
 
+[![Firmware CI](https://github.com/Love4yzp/sensecap-indicator-ha/actions/workflows/firmware.yml/badge.svg)](https://github.com/Love4yzp/sensecap-indicator-ha/actions/workflows/firmware.yml)
+
 <figure class="third">
     <img align="left" src="./assets/Home Assistant Data.png" width="240"/>
     <img align="center" src="./assets/Home Assistant.png" width="240"/>
@@ -230,6 +232,16 @@ cmake -S sim -B sim/build && cmake --build sim/build -j4
 ```
 
 **Architecture rules.** See [`AGENTS.md`](AGENTS.md) for module locations, boot sequence, and the model/view boundary rules that contributors (human and AI) must follow.
+
+### CI/CD
+
+Pull requests and pushes to `main` run host checks plus clean ESP32-S3 and
+RP2040 builds. Successful builds expose checksummed firmware artifacts for 14
+days. Pushing a `v*` tag publishes target-specific firmware archives and a
+cross-platform click-deploy package as a GitHub Release.
+
+See [`docs/ci-cd.md`](docs/ci-cd.md) for the trigger matrix, artifact contents,
+release procedure, and security boundaries.
 
 ---
 
