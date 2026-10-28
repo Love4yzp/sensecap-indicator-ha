@@ -155,6 +155,61 @@ class TestSwitchScreenDeliveryState(unittest.TestCase):
 
 
 class TestSwitchEventContract(unittest.TestCase):
+    def test_controller_and_screen_share_product_default_values(self):
+        config = (
+            ROOT / "main" / "home_assistant_config.h"
+        ).read_text(encoding="utf-8")
+        controller = (
+            ROOT / "main" / "ha" / "ha_switch.c"
+        ).read_text(encoding="utf-8")
+        screen = (
+            ROOT / "main" / "ha" / "ha_switch_screen.c"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "#define CONFIG_SWITCH_DEFAULT_VALUES", config
+        )
+        self.assertIn(
+            "static const int "
+            "switch_defaults[CONFIG_HA_SWITCH_ENTITY_NUM] =\n"
+            "    CONFIG_SWITCH_DEFAULT_VALUES;",
+            controller,
+        )
+        self.assertIn(
+            "static const int "
+            "switch_defaults[CONFIG_HA_SWITCH_ENTITY_NUM] =\n"
+            "    CONFIG_SWITCH_DEFAULT_VALUES;",
+            screen,
+        )
+        self.assertIn(
+            "memcpy(switch_state, switch_defaults, "
+            "sizeof(switch_state));",
+            controller,
+        )
+        self.assertIn(
+            "ha_switch_sync_init(\n"
+            "        &slot->sync, switch_defaults[slot->index]);",
+            screen,
+        )
+
+    def test_controller_publishes_authoritative_state_without_a_broker(self):
+        controller = (
+            ROOT / "main" / "ha" / "ha_switch.c"
+        ).read_text(encoding="utf-8")
+
+        init = controller.split(
+            "void ha_switch_init(void)", 1
+        )[1].split("\n}", 1)[0]
+        subscribe = controller.split(
+            "void ha_switch_subscribe", 1
+        )[1].split("\n}", 1)[0]
+
+        restore = init.index("ha_ctrl_cfg_restore();")
+        publish = init.index("publish_restored_switch_state();")
+        self.assertLess(restore, publish)
+        self.assertNotIn("restore_data_task", subscribe)
+        self.assertNotIn("xTaskCreate", subscribe)
+
     def test_user_command_model_state_and_publish_result_are_distinct(self):
         data_types = (
             ROOT / "main" / "view_data_types.h"

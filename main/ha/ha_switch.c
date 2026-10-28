@@ -7,8 +7,6 @@
 #include "storage_nvs.h"
 #include "esp_log.h"
 #include "mqtt_client.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 
 #define HA_CFG_STORAGE "ha-cfg"
 #define MAX_DATA_BUF_LEN 64
@@ -25,7 +23,8 @@ typedef struct ha_switch_entity {
 
 static ha_switch_entity_t ha_switch_entities[CONFIG_HA_SWITCH_ENTITY_NUM];
 static int switch_state[CONFIG_HA_SWITCH_ENTITY_NUM];
-static TaskHandle_t restore_task_handle = NULL;
+static const int switch_defaults[CONFIG_HA_SWITCH_ENTITY_NUM] =
+    CONFIG_SWITCH_DEFAULT_VALUES;
 
 static void ha_ctrl_cfg_restore(void)
 {
@@ -36,7 +35,7 @@ static void ha_ctrl_cfg_restore(void)
         ESP_LOGI(TAG, "ctrl config read successfully");
     } else {
         ESP_LOGW(TAG, "read control config failed, initializing to defaults");
-        memset(switch_state, 0, sizeof(switch_state));
+        memcpy(switch_state, switch_defaults, sizeof(switch_state));
     }
 }
 
@@ -130,10 +129,8 @@ static void publish_switch_state(
     publish_switch_result(command, authoritative_value, accepted);
 }
 
-static void restore_data_task(void *args)
+static void publish_restored_switch_state(void)
 {
-    ESP_LOGI(TAG, "Starting restore data task");
-
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         struct view_data_ha_switch_data switch_data = {.index = i, .value = switch_state[i]};
         view_event_delivery_t delivery = view_event_publish_state(
@@ -148,13 +145,7 @@ static void restore_data_task(void *args)
         }
 
         ESP_LOGI(TAG, "Restored switch %d state: %d", i, switch_state[i]);
-
-        vTaskDelay(pdMS_TO_TICKS(50));
     }
-
-    ESP_LOGI(TAG, "Restore data task completed, deleting itself");
-    restore_task_handle = NULL;
-    vTaskDelete(NULL);
 }
 
 static void view_event_handler(
@@ -189,6 +180,7 @@ void ha_switch_init(void)
     }
 
     ha_ctrl_cfg_restore();
+    publish_restored_switch_state();
 
     ESP_ERROR_CHECK(view_event_subscribe(
         VIEW_EVENT_HA_SWITCH_ST, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
@@ -199,10 +191,6 @@ void ha_switch_subscribe(esp_mqtt_client_handle_t client)
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         int msg_id = esp_mqtt_client_subscribe(client, ha_switch_entities[i].topic_set, ha_switch_entities[i].qos);
         ESP_LOGI(TAG, "subscribe:%s, msg_id=%d", ha_switch_entities[i].topic_set, msg_id);
-    }
-
-    if (restore_task_handle == NULL) {
-        xTaskCreate(restore_data_task, "restore_data_task", 4096, NULL, 5, &restore_task_handle);
     }
 }
 

@@ -31,6 +31,7 @@ indicator_ha_view_init()    (called from indicator_view.c)
 indicator_ha_model_init()   (called later from indicator_model.c)
   ha_sensor_init()          register VIEW_EVENT_SENSOR_DATA handler
   ha_switch_init()          init entities, restore NVS state,
+                            publish authoritative startup values,
                             register VIEW_EVENT_HA_SWITCH_ST handler
   create ha_cfg_event_handle
   init mqtt_ha_instance

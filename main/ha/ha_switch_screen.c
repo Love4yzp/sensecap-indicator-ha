@@ -93,6 +93,9 @@ static const char *const switch_names[SWITCH_SLOT_COUNT] = {
     CONFIG_SWITCH8_UI_NAME,
 };
 
+static const int switch_defaults[CONFIG_HA_SWITCH_ENTITY_NUM] =
+    CONFIG_SWITCH_DEFAULT_VALUES;
+
 static const sensor_card_spec_t mix_sensor_cards[] = {
     {
         .icon = &ui_img_ic_temp_png,
@@ -123,6 +126,13 @@ static void _apply_slot_value(switch_slot_t *slot, int value)
     slot->suppress_post = true;
     slot->update(slot->widget, value, slot->aux);
     slot->suppress_post = false;
+}
+
+static void _initialize_slot_state(switch_slot_t *slot)
+{
+    ha_switch_sync_init(
+        &slot->sync, switch_defaults[slot->index]);
+    _apply_slot_value(slot, switch_defaults[slot->index]);
 }
 
 static void _apply_sync_action(
@@ -484,7 +494,7 @@ static lv_obj_t *_create_large_toggle(lv_obj_t *tile, switch_slot_t *slot, int32
     slot->icon_on = icon_on;
     slot->icon_off = icon_off;
     slot->update = _update_toggle;
-    ha_switch_sync_init(&slot->sync, 0);
+    _initialize_slot_state(slot);
     lv_obj_add_event_cb(btn, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return btn;
 }
@@ -509,7 +519,7 @@ static lv_obj_t *_create_row_toggle(lv_obj_t *tile, switch_slot_t *slot, int32_t
     slot->icon_on = icon_on;
     slot->icon_off = icon_off;
     slot->update = _update_toggle;
-    ha_switch_sync_init(&slot->sync, 0);
+    _initialize_slot_state(slot);
     lv_obj_add_event_cb(btn, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return btn;
 }
@@ -528,7 +538,6 @@ static lv_obj_t *_create_embedded_switch(lv_obj_t *tile, switch_slot_t *slot, in
     lv_obj_t *toggle = lv_switch_create(card);
     lv_obj_set_size(toggle, switch_width, switch_height);
     lv_obj_set_pos(toggle, 115, 20);
-    lv_obj_add_state(toggle, LV_STATE_CHECKED);
     lv_obj_set_style_radius(toggle, 40, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_radius(toggle, 40, LV_PART_INDICATOR | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(toggle, lv_color_hex(SWITCH_TRACK), LV_PART_INDICATOR | LV_STATE_DEFAULT);
@@ -540,7 +549,7 @@ static lv_obj_t *_create_embedded_switch(lv_obj_t *tile, switch_slot_t *slot, in
 
     slot->widget = toggle;
     slot->update = _update_toggle;
-    ha_switch_sync_init(&slot->sync, 1);
+    _initialize_slot_state(slot);
     lv_obj_add_event_cb(toggle, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return toggle;
 }
@@ -558,7 +567,6 @@ static void _create_arc_card(lv_obj_t *tile, switch_slot_t *slot)
     lv_obj_add_flag(arc, LV_OBJ_FLAG_FLEX_IN_NEW_TRACK);
     lv_obj_remove_flag(arc, LV_OBJ_FLAG_PRESS_LOCK | LV_OBJ_FLAG_GESTURE_BUBBLE | LV_OBJ_FLAG_SCROLLABLE |
                            LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM | LV_OBJ_FLAG_SCROLL_CHAIN);
-    lv_arc_set_value(arc, 70);
     lv_arc_set_bg_angles(arc, 140, 40);
     lv_obj_set_style_arc_color(arc, lv_color_hex(ARC_TRACK), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_opa(arc, LV_OPA_COVER, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -584,7 +592,7 @@ static void _create_arc_card(lv_obj_t *tile, switch_slot_t *slot)
     slot->widget = arc;
     slot->aux = data;
     slot->update = _update_arc;
-    ha_switch_sync_init(&slot->sync, 70);
+    _initialize_slot_state(slot);
     lv_obj_add_event_cb(arc, _arc_event_cb, LV_EVENT_VALUE_CHANGED, slot);
 }
 
@@ -599,7 +607,6 @@ static void _create_slider_card(lv_obj_t *tile, switch_slot_t *slot)
     lv_obj_set_align(label, LV_ALIGN_BOTTOM_MID);
 
     lv_obj_t *slider = lv_slider_create(card);
-    lv_slider_set_value(slider, 80, LV_ANIM_OFF);
     if (lv_slider_get_mode(slider) == LV_SLIDER_MODE_RANGE) {
         lv_slider_set_left_value(slider, 0, LV_ANIM_OFF);
     }
@@ -615,7 +622,7 @@ static void _create_slider_card(lv_obj_t *tile, switch_slot_t *slot)
 
     slot->widget = slider;
     slot->update = _update_slider;
-    ha_switch_sync_init(&slot->sync, 80);
+    _initialize_slot_state(slot);
     lv_obj_add_event_cb(slider, _slider_event_cb, LV_EVENT_VALUE_CHANGED, slot);
 }
 

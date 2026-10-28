@@ -50,6 +50,12 @@ to the controller's persisted value rather than to a stale UI default.
   non-negative message id. Disconnected, formatting, outbox-full, and publish
   errors produce a negative result.
 - A successful local publish updates NVS before its result is emitted.
+- The screen and controller share the product defaults
+  `0,0,1,0,70,0,1,80`. When NVS has no saved switch state, rejection rollback
+  therefore returns to the value shown at startup rather than an unrelated
+  zero value.
+- Restored NVS/default state is published during HA model initialization. It
+  does not depend on an MQTT broker connection or subscription completing.
 - MQTT inbound values update NVS and publish keyed replaceable state.
 - Model state cancels pending debounce and result timers, applies under the
   LVGL lock, and invalidates older local results.
