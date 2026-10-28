@@ -41,11 +41,20 @@ struct view_data_wifi_item {
     int8_t  rssi;
 };
 
+struct view_data_wifi_scan_request {
+    uint32_t scan_generation;
+};
+
 struct view_data_wifi_list {
+    uint32_t                  scan_generation;
     bool                      is_connect;
     struct view_data_wifi_item connect;
     uint16_t                  cnt;
     struct view_data_wifi_item aps[WIFI_SCAN_LIST_SIZE];
+};
+
+struct view_data_wifi_scan_failure {
+    uint32_t scan_generation;
 };
 
 struct view_data_wifi_connet_ret_msg {
@@ -154,10 +163,10 @@ enum view_event_id {
     VIEW_EVENT_SENSOR_TVOC_HISTORY,     // NULL trigger; state
     VIEW_EVENT_SENSOR_CO2_HISTORY,      // NULL trigger; state
     VIEW_EVENT_SENSOR_DATA_HISTORY,     // struct view_data_sensor_history_data; state
-    VIEW_EVENT_WIFI_LIST,               // struct view_data_wifi_list; command result
-    VIEW_EVENT_WIFI_LIST_FAILED,        // NULL; command result
+    VIEW_EVENT_WIFI_LIST,               // struct view_data_wifi_list with scan generation; command result
+    VIEW_EVENT_WIFI_LIST_FAILED,        // struct view_data_wifi_scan_failure; command result
     VIEW_EVENT_WIFI_LIST_START,         // NULL; command notification
-    VIEW_EVENT_WIFI_LIST_REQ,           // NULL; command
+    VIEW_EVENT_WIFI_LIST_REQ,           // struct view_data_wifi_scan_request; command
     VIEW_EVENT_WIFI_CONNECT,            // struct view_data_wifi_config; command
     VIEW_EVENT_WIFI_CONNECT_RET,        // struct view_data_wifi_connet_ret_msg; command result
     VIEW_EVENT_WIFI_CFG_DELETE,         // NULL; command

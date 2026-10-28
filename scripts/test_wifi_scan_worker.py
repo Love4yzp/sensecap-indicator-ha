@@ -25,7 +25,7 @@ HARNESS = r"""
 #include "wifi_scan_worker_adapter.h"
 
 static wifi_scan_worker_execute_t execute_scan;
-static struct view_data_wifi_st pending;
+static struct wifi_scan_work pending;
 static bool has_pending;
 static bool adapter_busy;
 static bool scan_success;
@@ -51,12 +51,12 @@ bool wifi_scan_worker_adapter_init(wifi_scan_worker_execute_t execute)
     return true;
 }
 
-bool wifi_scan_worker_adapter_submit(const struct view_data_wifi_st *state)
+bool wifi_scan_worker_adapter_submit(const struct wifi_scan_work *work)
 {
     if (adapter_busy) {
         return false;
     }
-    pending = *state;
+    pending = *work;
     has_pending = true; /* queue length one: latest request wins */
     return true;
 }
@@ -87,17 +87,18 @@ void wifi_scan_worker_adapter_retry_delay(void)
 static void drain(void)
 {
     assert(has_pending);
-    struct view_data_wifi_st state = pending;
+    struct wifi_scan_work work = pending;
     has_pending = false;
-    execute_scan(&state);
+    execute_scan(&work);
 }
 
 view_event_delivery_t view_event_post_command(
     enum view_event_id id, const void *payload, size_t payload_size)
 {
     if (id == VIEW_EVENT_WIFI_LIST_FAILED) {
-        assert(payload == NULL);
-        assert(payload_size == 0);
+        assert(payload_size == sizeof(struct view_data_wifi_scan_failure));
+        const struct view_data_wifi_scan_failure *failure = payload;
+        assert(failure->scan_generation != 0);
         failure_posts++;
         return VIEW_EVENT_DELIVERY_ENQUEUED;
     }
@@ -127,15 +128,16 @@ int main(void)
     struct view_data_wifi_st latest = {
         .is_connected = true, .rssi = -20, .ssid = "connected-latest"};
 
-    assert(wifi_scan_worker_request(&first));
+    assert(wifi_scan_worker_request(1, &first));
     assert(scan_calls == 0);
     assert(result_posts == 0);
-    assert(wifi_scan_worker_request(&latest));
+    assert(wifi_scan_worker_request(2, &latest));
     assert(scan_calls == 0);
     drain();
 
     assert(scan_calls == 1);
     assert(result_posts == 1);
+    assert(last_list.scan_generation == 2);
     assert(last_list.is_connect);
     assert(strcmp(last_list.connect.ssid, "connected-latest") == 0);
     assert(last_list.cnt == 2);
@@ -144,7 +146,7 @@ int main(void)
 
     adapter_busy = true;
     double started = monotonic_seconds();
-    assert(!wifi_scan_worker_request(&first));
+    assert(!wifi_scan_worker_request(3, &first));
     assert(monotonic_seconds() - started < 0.100);
     assert(scan_calls == 1);
     assert(result_posts == 1);
@@ -156,7 +158,7 @@ int main(void)
     result_delivery_count = 3;
     result_posts = 0;
     retry_delays = 0;
-    assert(wifi_scan_worker_request(&first));
+    assert(wifi_scan_worker_request(4, &first));
     drain();
     assert(result_posts == 3);
     assert(retry_delays == 2);
@@ -165,7 +167,7 @@ int main(void)
     result_posts = 0;
     failure_posts = 0;
     retry_delays = 0;
-    assert(wifi_scan_worker_request(&first));
+    assert(wifi_scan_worker_request(5, &first));
     drain();
     assert(result_posts == 3);
     assert(failure_posts == 1);
@@ -175,7 +177,7 @@ int main(void)
     result_posts = 0;
     failure_posts = 0;
     retry_delays = 0;
-    assert(wifi_scan_worker_request(&first));
+    assert(wifi_scan_worker_request(6, &first));
     drain();
     assert(result_posts == 0);
     assert(failure_posts == 1);
@@ -238,20 +240,25 @@ class WifiScanWorkerTests(unittest.TestCase):
         self.assertIn("static void _wifi_scan_timeout_cb", source)
         timeout = source.split("static void _wifi_scan_timeout_cb", 1)[1]
         timeout = timeout.split("static void", 1)[0]
-        self.assertIn("s_wifi_scan_pending = false;", timeout)
+        self.assertIn("wifi_scan_ui_timeout", timeout)
         self.assertIn(
             "lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);", timeout
         )
-        timeout_start = source.split("static void _wifi_scan_timeout_start", 1)[1]
+        timeout_start = source.split("static bool _wifi_scan_timeout_start", 1)[1]
         timeout_start = timeout_start.split("static void", 1)[0]
-        self.assertIn("s_wifi_scan_pending = false;", timeout_start)
-        self.assertIn("_wifi_scan_timeout_start();", source)
+        self.assertIn(
+            "s_wifi_scan_timeout_generation = scan_generation;", timeout_start
+        )
+        self.assertIn("_wifi_scan_timeout_start(scan_generation)", source)
         wifi_list = source.split("case VIEW_EVENT_WIFI_LIST:", 1)[1]
         wifi_list = wifi_list.split("case VIEW_EVENT_WIFI_CONNECT_RET:", 1)[0]
+        self.assertIn("wifi_scan_ui_complete", wifi_list)
+        self.assertIn("WIFI_SCAN_UI_COMPLETION_STALE", wifi_list)
         self.assertIn("_wifi_scan_timeout_cancel();", wifi_list)
         failed = source.split("case VIEW_EVENT_WIFI_LIST_FAILED:", 1)[1]
         failed = failed.split("case VIEW_EVENT_WIFI_CONNECT_RET:", 1)[0]
-        self.assertIn("s_wifi_scan_pending = false;", failed)
+        self.assertIn("wifi_scan_ui_complete", failed)
+        self.assertIn("WIFI_SCAN_UI_COMPLETION_STALE", failed)
         self.assertIn("_wifi_scan_timeout_cancel();", failed)
         self.assertIn(
             "lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);", failed

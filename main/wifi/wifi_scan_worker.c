@@ -55,27 +55,34 @@ static bool wifi_scan_worker_post(
     return false;
 }
 
-static void wifi_scan_worker_post_failure(void)
+static void wifi_scan_worker_post_failure(uint32_t scan_generation)
 {
-    (void)wifi_scan_worker_post(VIEW_EVENT_WIFI_LIST_FAILED, NULL, 0);
+    const struct view_data_wifi_scan_failure failure = {
+        .scan_generation = scan_generation,
+    };
+    (void)wifi_scan_worker_post(
+        VIEW_EVENT_WIFI_LIST_FAILED, &failure, sizeof(failure));
 }
 
 static void wifi_scan_worker_execute(
-    const struct view_data_wifi_st *state)
+    const struct wifi_scan_work *work)
 {
+    const struct view_data_wifi_st *state = &work->state;
     struct wifi_scan_record records[WIFI_SCAN_LIST_SIZE] = {0};
     size_t count = 0;
     if (!wifi_scan_worker_adapter_scan(
             records, WIFI_SCAN_LIST_SIZE, &count)) {
         WIFI_SCAN_LOG_ERROR("scan adapter failed");
-        wifi_scan_worker_post_failure();
+        wifi_scan_worker_post_failure(work->scan_generation);
         return;
     }
     if (count > WIFI_SCAN_LIST_SIZE) {
         count = WIFI_SCAN_LIST_SIZE;
     }
 
-    struct view_data_wifi_list list = {0};
+    struct view_data_wifi_list list = {
+        .scan_generation = work->scan_generation,
+    };
     list.is_connect = state->is_connected;
     if (state->is_connected) {
         wifi_scan_copy_ssid(list.connect.ssid, state->ssid);
@@ -94,7 +101,7 @@ static void wifi_scan_worker_execute(
     }
 
     if (!wifi_scan_worker_post(VIEW_EVENT_WIFI_LIST, &list, sizeof(list))) {
-        wifi_scan_worker_post_failure();
+        wifi_scan_worker_post_failure(work->scan_generation);
     }
 }
 
@@ -103,7 +110,15 @@ bool wifi_scan_worker_init(void)
     return wifi_scan_worker_adapter_init(wifi_scan_worker_execute);
 }
 
-bool wifi_scan_worker_request(const struct view_data_wifi_st *state)
+bool wifi_scan_worker_request(
+    uint32_t scan_generation, const struct view_data_wifi_st *state)
 {
-    return state != NULL && wifi_scan_worker_adapter_submit(state);
+    if (scan_generation == 0 || state == NULL) {
+        return false;
+    }
+    const struct wifi_scan_work work = {
+        .scan_generation = scan_generation,
+        .state = *state,
+    };
+    return wifi_scan_worker_adapter_submit(&work);
 }

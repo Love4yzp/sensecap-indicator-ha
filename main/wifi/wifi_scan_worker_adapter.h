@@ -13,11 +13,16 @@ struct wifi_scan_record {
     int8_t rssi;
 };
 
+struct wifi_scan_work {
+    uint32_t scan_generation;
+    struct view_data_wifi_st state;
+};
+
 typedef void (*wifi_scan_worker_execute_t)(
-    const struct view_data_wifi_st *state);
+    const struct wifi_scan_work *work);
 
 bool wifi_scan_worker_adapter_init(wifi_scan_worker_execute_t execute);
-bool wifi_scan_worker_adapter_submit(const struct view_data_wifi_st *state);
+bool wifi_scan_worker_adapter_submit(const struct wifi_scan_work *work);
 bool wifi_scan_worker_adapter_scan(
     struct wifi_scan_record *records, size_t capacity, size_t *count);
 void wifi_scan_worker_adapter_retry_delay(void);

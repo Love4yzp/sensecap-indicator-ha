@@ -62,9 +62,14 @@ static bool _wifi_st_try_get(struct view_data_wifi_st* p_st) {
 	return true;
 }
 
-static void _wifi_scan_report_failure(const char* reason) {
+static void _wifi_scan_report_failure(
+	uint32_t scan_generation, const char* reason) {
+	const struct view_data_wifi_scan_failure failure = {
+		.scan_generation = scan_generation,
+	};
 	view_event_delivery_t delivery =
-		view_event_post_command(VIEW_EVENT_WIFI_LIST_FAILED, NULL, 0);
+		view_event_post_command(
+			VIEW_EVENT_WIFI_LIST_FAILED, &failure, sizeof(failure));
 	if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
 	{
 		ESP_LOGE(
@@ -360,16 +365,20 @@ static void _view_event_handler(
 		case VIEW_EVENT_WIFI_LIST_REQ:
 		{
 			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_LIST_REQ");
+			const struct view_data_wifi_scan_request* request =
+				(const struct view_data_wifi_scan_request*)event_data;
 			struct view_data_wifi_st st;
 			if(!_wifi_st_try_get(&st))
 			{
-				_wifi_scan_report_failure("wifi state snapshot busy");
+				_wifi_scan_report_failure(
+					request->scan_generation, "wifi state snapshot busy");
 				break;
 			}
-			if(!wifi_scan_worker_request(&st))
+			if(!wifi_scan_worker_request(request->scan_generation, &st))
 			{
 				ESP_LOGE(TAG, "wifi scan request rejected by worker");
-				_wifi_scan_report_failure("wifi scan worker busy");
+				_wifi_scan_report_failure(
+					request->scan_generation, "wifi scan worker busy");
 			}
 			break;
 		}

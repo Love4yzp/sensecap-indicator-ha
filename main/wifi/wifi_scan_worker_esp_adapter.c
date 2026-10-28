@@ -20,10 +20,10 @@ static wifi_scan_worker_execute_t s_execute;
 static void wifi_scan_worker_task(void *context)
 {
     (void)context;
-    struct view_data_wifi_st state;
+    struct wifi_scan_work work;
     while (true) {
-        if (xQueueReceive(s_request_queue, &state, portMAX_DELAY) == pdTRUE) {
-            s_execute(&state);
+        if (xQueueReceive(s_request_queue, &work, portMAX_DELAY) == pdTRUE) {
+            s_execute(&work);
         }
     }
 }
@@ -35,7 +35,7 @@ bool wifi_scan_worker_adapter_init(wifi_scan_worker_execute_t execute)
     }
     s_execute = execute;
     s_request_queue = xQueueCreate(
-        WIFI_SCAN_WORKER_QUEUE_LENGTH, sizeof(struct view_data_wifi_st));
+        WIFI_SCAN_WORKER_QUEUE_LENGTH, sizeof(struct wifi_scan_work));
     if (s_request_queue == NULL) {
         ESP_LOGE("wifi-scan", "failed to create request queue");
         return false;
@@ -55,10 +55,10 @@ bool wifi_scan_worker_adapter_init(wifi_scan_worker_execute_t execute)
     return true;
 }
 
-bool wifi_scan_worker_adapter_submit(const struct view_data_wifi_st *state)
+bool wifi_scan_worker_adapter_submit(const struct wifi_scan_work *work)
 {
     return s_request_queue != NULL &&
-        xQueueOverwrite(s_request_queue, state) == pdTRUE;
+        xQueueOverwrite(s_request_queue, work) == pdTRUE;
 }
 
 bool wifi_scan_worker_adapter_scan(

@@ -62,9 +62,11 @@ static const struct view_event_descriptor s_descriptors[VIEW_EVENT_ALL] = {
     [VIEW_EVENT_SENSOR_DATA_HISTORY] =
         STATE(struct view_data_sensor_history_data),
     [VIEW_EVENT_WIFI_LIST] = COMMAND(struct view_data_wifi_list),
-    [VIEW_EVENT_WIFI_LIST_FAILED] = COMMAND_EMPTY,
+    [VIEW_EVENT_WIFI_LIST_FAILED] =
+        COMMAND(struct view_data_wifi_scan_failure),
     [VIEW_EVENT_WIFI_LIST_START] = COMMAND_EMPTY,
-    [VIEW_EVENT_WIFI_LIST_REQ] = COMMAND_EMPTY,
+    [VIEW_EVENT_WIFI_LIST_REQ] =
+        COMMAND(struct view_data_wifi_scan_request),
     [VIEW_EVENT_WIFI_CONNECT] = COMMAND(struct view_data_wifi_config),
     [VIEW_EVENT_WIFI_CONNECT_RET] =
         COMMAND(struct view_data_wifi_connet_ret_msg),

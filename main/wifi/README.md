@@ -10,6 +10,7 @@ Vertical slice for all WiFi functionality. Mirrors the pattern established by `m
 | `wifi_list_screen.c` | AP list widget lifecycle, item creation, show/hide spinner | ✓ |
 | `wifi_connect_screen.c` | Connect dialog and AP-details dialog (modal overlays) | ✓ |
 | `wifi_view.c` | Event subscriptions, status icon updates, screen navigation, component coordination | ✓ |
+| `wifi_scan_ui_state.c` | Generation-safe pending/discard/stale scan transitions | ✗ |
 | `wifi.h` | Umbrella header (`wifi_model.h` + `wifi_view.h`) | — |
 
 ## Init Sequence
@@ -46,10 +47,10 @@ WIFI_EVENT_STA_CONNECTED (ESP WiFi)
   → wifi_model: posts VIEW_EVENT_WIFI_ST + VIEW_EVENT_WIFI_CONNECT_RET
 
 VIEW_EVENT_WIFI_CONNECT_RET
-  → wifi_view: posts VIEW_EVENT_WIFI_LIST_REQ, shows toast
+  → wifi_view: starts a generation-tagged VIEW_EVENT_WIFI_LIST_REQ, shows toast
 
 VIEW_EVENT_WIFI_LIST (scan result)
-  → wifi_view: wifi_list_screen_update()
+  → wifi_view: applies only if its generation is current
 ```
 
 ## LVGL Thread Safety

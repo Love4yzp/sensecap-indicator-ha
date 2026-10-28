@@ -111,10 +111,6 @@ static void _on_delete(lv_event_t *e) {
         return;
     }
 
-    delivery = view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
-    if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
-        ESP_LOGE(TAG, "post-delete refresh rejected: delivery=%d", (int)delivery);
-    }
     _dismiss(s);
 }
 

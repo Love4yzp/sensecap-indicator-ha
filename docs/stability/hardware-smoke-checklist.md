@@ -65,6 +65,8 @@ command console, Wi-Fi, MQTT, and Home Assistant logic.
   within 15 seconds and a later scan can be requested.
 - [ ] If a Wi-Fi scan itself fails, confirm the spinner stops and the modal
   remains responsive for a later scan request.
+- [ ] Close the Wi-Fi modal during a scan, reopen it immediately, and confirm
+  an old success/failure cannot stop or discard the new scan.
 
 ## 3. Backlight and sleep/wake
 

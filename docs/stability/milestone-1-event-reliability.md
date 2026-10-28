@@ -55,10 +55,10 @@ the payload only while its subscribed handler is running.
 | `VIEW_EVENT_CITY` | currently unused | currently unused | documented city value | Replaceable state. |
 | `VIEW_EVENT_SENSOR_DATA` | RP2040 UART parser via sensor model | Sensor view and HA sensor publisher | `struct view_data_sensor_data` | Replaceable state, latest value per sensor type. |
 | Sensor history events | currently unused | currently unused | trigger/history payload per existing manifest | Replaceable state per event. |
-| `VIEW_EVENT_WIFI_LIST` | Wi-Fi scan worker | Wi-Fi view | `struct view_data_wifi_list` | Critical result; worker-owned bounded retry, then explicit failure completion. |
-| `VIEW_EVENT_WIFI_LIST_FAILED` | Wi-Fi model/scan worker | Wi-Fi view | `NULL` | Critical failure completion; clears pending/spinner, with the view timeout as final fallback. |
+| `VIEW_EVENT_WIFI_LIST` | Wi-Fi scan worker | Wi-Fi view | `struct view_data_wifi_list` with scan generation | Critical result; worker-owned bounded retry, then explicit failure completion. |
+| `VIEW_EVENT_WIFI_LIST_FAILED` | Wi-Fi model/scan worker | Wi-Fi view | `struct view_data_wifi_scan_failure` | Critical generation-tagged failure completion; clears only the matching pending scan. |
 | `VIEW_EVENT_WIFI_LIST_START` | currently unused | Wi-Fi view | `NULL` | Critical command/notification. |
-| `VIEW_EVENT_WIFI_LIST_REQ` | Wi-Fi views | Wi-Fi model and Wi-Fi view | `NULL` | Critical user command. |
+| `VIEW_EVENT_WIFI_LIST_REQ` | Wi-Fi view | Wi-Fi model | `struct view_data_wifi_scan_request` | Critical user command tagged with the view-owned scan generation. |
 | `VIEW_EVENT_WIFI_CONNECT` | Wi-Fi connect view | Wi-Fi model and Wi-Fi view | `struct view_data_wifi_config` | Critical user command. |
 | `VIEW_EVENT_WIFI_CONNECT_RET` | Wi-Fi callbacks | Wi-Fi view | `struct view_data_wifi_connet_ret_msg` | Critical command result. |
 | `VIEW_EVENT_WIFI_CFG_DELETE` | Wi-Fi details view | Wi-Fi model and Wi-Fi view | `NULL` | Critical destructive command. |
@@ -206,6 +206,14 @@ It also owns a 15-second LVGL timer for every accepted scan request as a final
 fallback if queue pressure rejects both the result and failure completion.
 Thus permanent pressure cannot leave the modal indefinitely pending, and
 synchronous scanning remains outside the view-event task.
+
+Every request, success, failure, and timeout is associated with a monotonically
+advancing view-owned scan generation. The pure `wifi_scan_ui_state` module
+classifies a completion as current, discard-after-close, or stale. A stale
+completion cannot cancel the current timer, clear a newer pending scan, or
+discard a later successful list. This replaces the former one-bit
+`discard_next_list` coupling without exposing LVGL or transport details through
+the state module interface.
 
 HA switch screen slots track the last accepted value from both local commands
 and model-driven updates. Programmatic application and rejection rollback use

@@ -31,6 +31,7 @@ def main() -> int:
     run("View event delivery", ["python3", "scripts/test_view_event_delivery.py"])
     run("Button press state", ["python3", "scripts/test_button_press_state.py"])
     run("Wi-Fi scan worker", ["python3", "scripts/test_wifi_scan_worker.py"])
+    run("Wi-Fi scan UI state", ["python3", "scripts/test_wifi_scan_ui_state.py"])
     run("Architecture scan unit tests", ["python3", "scripts/test_architecture_scan.py"])
     run("Architecture scan", ["python3", "scripts/architecture_scan.py"])
     run("Project knowledge", ["python3", "scripts/test_project_knowledge.py"])

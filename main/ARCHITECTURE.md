@@ -207,6 +207,9 @@ The request handler takes its model snapshot with zero wait. Scan, snapshot,
 submission, or result-delivery failure produces
 `VIEW_EVENT_WIFI_LIST_FAILED`; the view clears pending/spinner state on that
 completion and retains a 15-second timeout as the final queue-pressure
-fallback.
+fallback. Requests and completions carry a view-owned scan generation.
+`wifi_scan_ui_state` classifies current, closed-modal, and stale completions,
+so an old result/failure/timeout cannot mutate a newer scan's pending state or
+timer.
 
 Adding a new page: add a tile in `nav/nav.h`, include the owning directory in `main/CMakeLists.txt`, build widgets in that domain's view/screen file, and call the view init function from `indicator_view.c`.
