@@ -14,6 +14,8 @@ verification and release pipeline.
 
 New commits cancel older in-progress runs for the same branch. Tag builds are
 never cancelled because they may be publishing immutable release evidence.
+All jobs run on `ubuntu-24.04`; the workflow does not follow the moving
+`ubuntu-latest` alias across runner-image migrations.
 
 ## Verification jobs
 
