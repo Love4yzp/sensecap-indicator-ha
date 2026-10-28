@@ -131,6 +131,9 @@ SERVICE_CALLBACK_RE = re.compile(r"\b([a-zA-Z0-9_]+_register_(?:cb|callback))\s*
 VIEW_EVENT_PRIVATE_INCLUDE_RE = re.compile(
     r"#\s*include\s*[<\"][^>\"]*view_event_adapter\.h[>\"]"
 )
+WIFI_SCAN_PRIVATE_INCLUDE_RE = re.compile(
+    r"#\s*include\s*[<\"][^>\"]*wifi_scan_worker_adapter\.h[>\"]"
+)
 VIEW_EVENT_LEGACY_TRANSPORT_RE = re.compile(
     r"\b(view_event_handle|VIEW_EVENT_BASE)\b"
 )
@@ -138,9 +141,8 @@ VIEW_EVENT_INTERNAL_TRANSPORT_RE = re.compile(r"\bVIEW_EVENT_TRANSPORT_BASE\b")
 ESP_EVENT_TRANSPORT_CALL_RE = re.compile(
     r"\b(esp_event_post_to|esp_event_handler_instance_register_with)\s*\("
 )
-VIEW_EVENT_IGNORED_COMMAND_RE = re.compile(
-    r"(?m)^\s*view_event_post_command\s*\("
-)
+VIEW_EVENT_COMMAND_CALL_RE = re.compile(r"\bview_event_post_command\s*\(")
+ASSIGNMENT_RE = re.compile(r"(?<![=!<>])=(?!=)")
 
 
 def mask_c_non_code(text: str) -> str:
@@ -384,6 +386,10 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
     rel = rel_key(path)
     code_text = mask_c_non_code(text)
     adapter_path = "main/view_event/view_event_esp_adapter.c"
+    wifi_scan_adapter_paths = {
+        "main/wifi/wifi_scan_worker.c",
+        "main/wifi/wifi_scan_worker_esp_adapter.c",
+    }
 
     if not rel.startswith("main/view_event/"):
         for match in VIEW_EVENT_PRIVATE_INCLUDE_RE.finditer(text):
@@ -393,6 +399,16 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
                 line_number(text, match.start()),
                 "view-event-private-adapter",
                 "runtime code must use view_event.h, not the private adapter seam",
+            )
+
+    if rel not in wifi_scan_adapter_paths:
+        for match in WIFI_SCAN_PRIVATE_INCLUDE_RE.finditer(text):
+            add_finding(
+                findings,
+                path,
+                line_number(text, match.start()),
+                "wifi-scan-private-adapter",
+                "runtime code must use wifi_scan_worker.h, not its private adapter seam",
             )
 
     for match in VIEW_EVENT_LEGACY_TRANSPORT_RE.finditer(code_text):
@@ -424,12 +440,38 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
                 f"{match.group(1)} belongs only in view_event_esp_adapter.c",
             )
 
-    for match in VIEW_EVENT_IGNORED_COMMAND_RE.finditer(code_text):
+    command_interface_paths = {
+        "main/view_event/view_event.c",
+        "main/view_event/view_event.h",
+    }
+    for match in (
+        ()
+        if rel in command_interface_paths
+        else VIEW_EVENT_COMMAND_CALL_RE.finditer(code_text)
+    ):
         line_start = code_text.rfind("\n", 0, match.start()) + 1
+        line_end = code_text.find("\n", match.end())
+        if line_end < 0:
+            line_end = len(code_text)
+        prefix = code_text[line_start:match.start()]
+        line = code_text[line_start:line_end]
         previous_end = line_start - 1
         previous_start = code_text.rfind("\n", 0, previous_end) + 1
         previous_line = code_text[previous_start:previous_end].strip()
-        if previous_line.endswith("=") or previous_line == "return":
+        if (
+            prefix.strip() == "return"
+            or prefix.strip().startswith("return ")
+            or previous_line == "return"
+            or previous_line.endswith("=")
+            or ASSIGNMENT_RE.search(prefix)
+            or (
+                prefix.strip().startswith("if (")
+                and re.search(
+                    r"(?:==|!=)\s*VIEW_EVENT_DELIVERY_[A-Z_]+",
+                    line[match.end() - line_start :],
+                )
+            )
+        ):
             continue
         add_finding(
             findings,

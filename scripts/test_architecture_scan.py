@@ -68,12 +68,17 @@ esp_event_post_to(
                 self.assertEqual(rules, ["view-event-private-adapter"])
 
     def test_rejects_ignored_command_delivery_result(self) -> None:
-        rules = self.scan(
-            "main/wifi/example.c",
+        for source in (
             "view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
-        )
-
-        self.assertIn("view-event-command-result", rules)
+            "(void)view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+            "if (ready) view_event_post_command("
+            "VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+            "if (ready)\n"
+            "    view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+        ):
+            with self.subTest(source=source):
+                rules = self.scan("main/wifi/example.c", source)
+                self.assertIn("view-event-command-result", rules)
 
     def test_allows_explicit_command_delivery_handling(self) -> None:
         for source in (
@@ -102,6 +107,27 @@ esp_event_post_to(loop, VIEW_EVENT_TRANSPORT_BASE, 0, NULL, 0, 0);
         self.assertEqual(adapter_rules, [])
         self.assertIn("view-event-internal-transport", core_rules)
         self.assertIn("view-event-adapter-boundary", core_rules)
+
+    def test_rejects_wifi_scan_private_adapter_outside_worker_module(self) -> None:
+        for include in (
+            '#include "wifi_scan_worker_adapter.h"\n',
+            '#include "wifi/wifi_scan_worker_adapter.h"\n',
+            '#include "../wifi/wifi_scan_worker_adapter.h"\n',
+            "#include <wifi/wifi_scan_worker_adapter.h>\n",
+        ):
+            with self.subTest(include=include):
+                rules = self.scan("main/ha/example.c", include)
+                self.assertIn("wifi-scan-private-adapter", rules)
+
+        for path in (
+            "main/wifi/wifi_scan_worker.c",
+            "main/wifi/wifi_scan_worker_esp_adapter.c",
+        ):
+            with self.subTest(path=path):
+                self.assertNotIn(
+                    "wifi-scan-private-adapter",
+                    self.scan(path, '#include "wifi_scan_worker_adapter.h"\n'),
+                )
 
 
 if __name__ == "__main__":

@@ -95,8 +95,19 @@ class ButtonPressStateTests(unittest.TestCase):
             "if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED)", 1
         )[1].split("}", 1)[0]
         self.assertNotIn("break;", rejected)
-        self.assertIn("esp_timer_create(", factory_case)
-        self.assertIn("esp_timer_start_once(", factory_case)
+        rejected_end = factory_case.index("}", factory_case.index(
+            "if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED)"
+        ))
+        display_state = factory_case.index(
+            "view_event_publish_state(VIEW_EVENT_SCREEN_CTRL"
+        )
+        display_on = factory_case.index("indicator_display_on()")
+        timer_create = factory_case.index("esp_timer_create(")
+        timer_start = factory_case.index("esp_timer_start_once(")
+        self.assertLess(rejected_end, display_state)
+        self.assertLess(display_state, display_on)
+        self.assertLess(display_on, timer_create)
+        self.assertLess(timer_create, timer_start)
 
 
 if __name__ == "__main__":
