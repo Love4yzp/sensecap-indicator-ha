@@ -142,7 +142,7 @@ ESP_EVENT_TRANSPORT_CALL_RE = re.compile(
     r"\b(esp_event_post_to|esp_event_handler_instance_register_with)\s*\("
 )
 VIEW_EVENT_COMMAND_CALL_RE = re.compile(r"\bview_event_post_command\s*\(")
-ASSIGNMENT_RE = re.compile(r"(?<![=!<>])=(?!=)")
+RESULT_ASSIGNMENT_RE = re.compile(r"(?<![=!<>])=(?!=)[\s(]*$")
 
 
 def mask_c_non_code(text: str) -> str:
@@ -240,6 +240,60 @@ def is_model_file(path: Path) -> bool:
 
 def line_number(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
+
+
+def matching_paren(text: str, open_offset: int) -> int | None:
+    depth = 0
+    for offset in range(open_offset, len(text)):
+        if text[offset] == "(":
+            depth += 1
+        elif text[offset] == ")":
+            depth -= 1
+            if depth == 0:
+                return offset
+    return None
+
+
+def command_result_is_handled(
+    code_text: str, match: re.Match[str]
+) -> bool:
+    statement_start = max(
+        code_text.rfind(delimiter, 0, match.start())
+        for delimiter in (";", "{", "}")
+    ) + 1
+    prefix = code_text[statement_start:match.start()]
+    stripped_prefix = prefix.strip()
+    if stripped_prefix == "return" or stripped_prefix.startswith("return "):
+        return True
+    if RESULT_ASSIGNMENT_RE.search(prefix):
+        return True
+
+    call_open = code_text.find("(", match.start(), match.end())
+    call_close = matching_paren(code_text, call_open)
+    if call_close is None:
+        return False
+
+    for if_match in re.finditer(r"\bif\s*\(", code_text[:match.start()]):
+        condition_open = code_text.find(
+            "(", if_match.start(), if_match.end()
+        )
+        condition_close = matching_paren(code_text, condition_open)
+        if (
+            condition_close is None
+            or not (condition_open < match.start() < call_close < condition_close)
+        ):
+            continue
+        before_call = code_text[condition_open + 1:match.start()]
+        after_call = code_text[call_close + 1:condition_close]
+        return bool(
+            re.search(r"(?:==|!=)\s*$", before_call)
+            or re.match(
+                r"\s*(?:==|!=)\s*VIEW_EVENT_DELIVERY_[A-Z_]+",
+                after_call,
+            )
+        )
+
+    return False
 
 
 def add_finding(findings: list[Finding], path: Path, line: int, rule: str, message: str) -> None:
@@ -449,29 +503,7 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
         if rel in command_interface_paths
         else VIEW_EVENT_COMMAND_CALL_RE.finditer(code_text)
     ):
-        line_start = code_text.rfind("\n", 0, match.start()) + 1
-        line_end = code_text.find("\n", match.end())
-        if line_end < 0:
-            line_end = len(code_text)
-        prefix = code_text[line_start:match.start()]
-        line = code_text[line_start:line_end]
-        previous_end = line_start - 1
-        previous_start = code_text.rfind("\n", 0, previous_end) + 1
-        previous_line = code_text[previous_start:previous_end].strip()
-        if (
-            prefix.strip() == "return"
-            or prefix.strip().startswith("return ")
-            or previous_line == "return"
-            or previous_line.endswith("=")
-            or ASSIGNMENT_RE.search(prefix)
-            or (
-                prefix.strip().startswith("if (")
-                and re.search(
-                    r"(?:==|!=)\s*VIEW_EVENT_DELIVERY_[A-Z_]+",
-                    line[match.end() - line_start :],
-                )
-            )
-        ):
+        if command_result_is_handled(code_text, match):
             continue
         add_finding(
             findings,

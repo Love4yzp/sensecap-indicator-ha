@@ -75,6 +75,10 @@ esp_event_post_to(
             "VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
             "if (ready)\n"
             "    view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+            "int x = 0; view_event_post_command("
+            "VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+            "int x = 0, view_event_post_command("
+            "VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
         ):
             with self.subTest(source=source):
                 rules = self.scan("main/wifi/example.c", source)
@@ -87,6 +91,10 @@ esp_event_post_to(
             "VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
             "if (view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0) "
             "!= VIEW_EVENT_DELIVERY_ENQUEUED) {}\n",
+            "if (\n"
+            "    view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0)\n"
+            "    != VIEW_EVENT_DELIVERY_ENQUEUED\n"
+            ") {}\n",
         ):
             with self.subTest(source=source):
                 self.assertNotIn(
