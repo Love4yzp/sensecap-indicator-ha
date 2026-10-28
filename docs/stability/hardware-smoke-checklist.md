@@ -12,15 +12,17 @@ separate scoped investigation, not permission to tune drivers in this stage.
 
 | Field | Value |
 | --- | --- |
-| Date / tester | |
+| Date / tester | `2026-10-28` / user-confirmed manual smoke |
 | Board revision / serial | |
-| ESP32-S3 commit | |
+| ESP32-S3 commit | Milestone 1 stage-1 image; exact binary recorded below |
 | ESP-IDF tag / commit | `v5.5.6` / `880a203ae603d08a94d06aa01e0d6761958e5e9e` |
-| RP2040 firmware commit | |
+| Firmware image | `indicator_ha.bin` size `0x1b38a0`; SHA-256 `4ad845a073e64b162fcb49c3ac7e87580395cb175930107e08c98c7909b236e3` |
+| Flash port | `/dev/ttyUSB0` (`1a86:7523`, CH340 / ESP32-S3) |
+| RP2040 firmware commit | Not changed; `/dev/ttyACM0` (`2886:0050`) was not operated on |
 | Power source | |
 | Wi-Fi AP / security mode | |
-| MQTT broker / transport | |
-| Home Assistant version | |
+| MQTT broker / transport | Not configured; session recovery not verified |
+| Home Assistant version | Not configured; integration recovery not verified |
 
 ## 1. Flash and boot
 
@@ -190,11 +192,22 @@ including Wi-Fi and application configuration.
 ## Result
 
 - [ ] PASS: all required checks passed.
-- [ ] PASS WITH OPEN ITEMS: list each unrun or accepted item below.
+- [x] PASS WITH OPEN ITEMS: list each unrun or accepted item below.
 - [ ] FAIL: attach serial logs and the exact first failing step.
 
 Open items / evidence:
 
 ```text
+2026-10-28 manual smoke:
+- Rapid swipes and repeated clicks completed without a freeze.
+- Closing a Wi-Fi scan and immediately reopening it ended the spinner normally
+  and displayed the new list.
+- One long press produced one sleep transition; a short press woke the device.
+- LCD, touch, Wi-Fi icon, Wi-Fi recovery, and continuous sensor values passed.
+- ESP-IDF v5.5.6 startup monitoring showed no panic, watchdog, or assertion.
+- Only /dev/ttyUSB0 ESP32-S3 was flashed; the RP2040 was not operated on.
 
+Open integration check:
+- MQTT/HA broker was not configured, so MQTT/HA session recovery is not
+  claimed as verified.
 ```

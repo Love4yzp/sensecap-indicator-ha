@@ -281,6 +281,29 @@ adapter-busy returns promptly, result construction preserves the latest
 connection snapshot, result retries remain bounded under queue pressure, and
 the view timeout always clears pending/spinner state.
 
+## Hardware verification and completion
+
+Milestone 1 stage 1 hardware smoke passed on 2026-10-28:
+
+- Rapid swipes and repeated UI clicks remained responsive. Closing the Wi-Fi
+  modal during a scan and immediately reopening it did not freeze the UI; the
+  spinner completed normally and the new AP list appeared.
+- Each power-button long press triggered sleep once. A subsequent short press
+  woke the device normally.
+- LCD, touch, the Wi-Fi status icon, and continuously updating sensor values
+  remained functional. Wi-Fi recovered successfully.
+- The verified image used ESP-IDF v5.5.6 and had a firmware size of
+  `0x1b38a0` with SHA-256
+  `4ad845a073e64b162fcb49c3ac7e87580395cb175930107e08c98c7909b236e3`.
+- Only `/dev/ttyUSB0` (`1a86:7523`, CH340 / ESP32-S3) was flashed.
+  `/dev/ttyACM0` (`2886:0050`, Indicator RP2040) was not operated on.
+- Startup monitoring showed no panic, watchdog, or assertion failure.
+
+No MQTT or Home Assistant broker was configured on the test device. MQTT/HA
+session recovery is therefore not recorded as verified and remains an explicit
+open hardware-integration check. This limitation does not block completion of
+the event-reliability stage.
+
 ## Explicitly deferred
 
 - credential log redaction;
