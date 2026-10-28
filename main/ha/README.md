@@ -13,9 +13,10 @@ each feature slice owns its full stack (data model + MQTT protocol + UI componen
 | `ha_mqtt.c` | ~200 | MQTT client lifecycle: connect/disconnect/reconnect. Routes `MQTT_EVENT_DATA` to sensor and switch slices. Owns `mqtt_ha_instance`. |
 | `ha_config.c` | ~154 | Broker NVS config (`ha_cfg_get`/`ha_cfg_set`) + IP address modal view. |
 | `ha_sensor.c` | ~128 | Sensor entity metadata, subscribes to sensor MQTT topics, publishes built-in sensor readings, routes incoming sensor JSON to `VIEW_EVENT_HA_SENSOR`. |
-| `ha_switch.c` | ~237 | Switch entity metadata, NVS state persistence, MQTT publish/subscribe, posts `VIEW_EVENT_HA_SWITCH_SET`. Holds `ha_switch_screen_t *` — does NOT touch LVGL directly. |
-| `ha_switch_screen.c` | ~500 | Builds HA switch widgets on nav tiles. Owns widget handles for all 8 switch widgets. Dispatch table maps index → widget + updater function. |
-| `ha_switch_screen.h` | 18 | `create` / `update` / `destroy` interface. |
+| `ha_switch.c` | Switch entity metadata, NVS state persistence, MQTT publish/subscribe, and generation-tagged publish results. UI-free. |
+| `ha_switch_sync.c` | Pure generation/debounce/result state module. Owns stale-result filtering and rollback decisions. |
+| `ha_switch_screen.c` | Builds and owns all 8 switch widgets, LVGL timers, and direct subscriptions to model state/publish results. |
+| `ha_switch_screen.h` | Single idempotent `create` interface. |
 
 ---
 
@@ -25,12 +26,12 @@ each feature slice owns its full stack (data model + MQTT protocol + UI componen
 indicator_ha_view_init()    (called from indicator_view.c)
   ha_config_view_init()     register VIEW_EVENT_MQTT_ADDR_CHANGED + VIEW_EVENT_HA_ADDR_DISPLAY
   ha_switch_screen_create() builds switch widgets on NAV_TILE_HA_CTRL and NAV_TILE_HA_MIX
-  ha_switch_attach_screen() gives ha_switch.c the screen handle
+                            subscribe to HA switch model state + publish results
 
 indicator_ha_model_init()   (called later from indicator_model.c)
   ha_sensor_init()          register VIEW_EVENT_SENSOR_DATA handler
   ha_switch_init()          init entities, restore NVS state,
-                            register VIEW_EVENT_HA_SWITCH_ST + VIEW_EVENT_HA_SWITCH_SET handlers
+                            register VIEW_EVENT_HA_SWITCH_ST handler
   create ha_cfg_event_handle
   init mqtt_ha_instance
   register VIEW_EVENT_WIFI_ST handler
@@ -41,16 +42,21 @@ indicator_ha_model_init()   (called later from indicator_model.c)
 ## Event Flows
 
 ```
-User toggles switch widget
+User changes a switch widget
   → ha_switch_screen.c: LV_EVENT_VALUE_CHANGED
-  → post VIEW_EVENT_HA_SWITCH_ST {index, value}
-  → ha_switch.c: publish to MQTT topic_state, save NVS
+  → toggle publishes immediately; arc/slider debounce for 200 ms
+  → post VIEW_EVENT_HA_SWITCH_ST {index, value, generation}
+  → ha_switch.c: publish to MQTT topic_state
+  → save NVS on client acceptance
+  → post VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT
+  → screen confirms or rolls back the matching generation
 
 MQTT broker sends switch command
   → ha_mqtt.c: MQTT_EVENT_DATA
   → ha_switch_on_mqtt_data()
-  → post VIEW_EVENT_HA_SWITCH_SET {index, value}
-  → ha_switch.c: ha_switch_screen_update() [LVGL lock]
+  → persist latest model value
+  → publish keyed VIEW_EVENT_HA_SWITCH_SET {index, value}
+  → ha_switch_screen.c cancels local timers and applies under LVGL lock
 
 WiFi connects
   → VIEW_EVENT_WIFI_ST {is_network=true}
@@ -82,6 +88,7 @@ User changes broker IP
 1. Add a new `_update_xxx()` function in `ha_switch_screen.c`
 2. Add a slot entry in `ha_switch_screen_create()` pointing to the locally-created widget and updater
 3. Extend `CONFIG_HA_SWITCH_ENTITY_NUM` in `home_assistant_config.h` if adding a new entity
+4. Choose immediate or debounced input semantics explicitly
 
 ## Extending to a New Feature Slice
 
@@ -90,4 +97,4 @@ Follow this pattern:
 2. `ha_yyy_screen.c` — LVGL component, `create`/`update`/`destroy` interface
 3. Declare cross-module functions in `ha.h`
 4. Call `ha_yyy_init()` from `indicator_ha_model_init()` in `ha_mqtt.c`
-5. Call `ha_yyy_screen_create()` + attach from `indicator_ha_view_init()` in `ha_mqtt.c`
+5. Call `ha_yyy_screen_create()` from `indicator_ha_view_init()` in `ha_mqtt.c`

@@ -105,6 +105,32 @@ handler call.
 The full producer/consumer/payload/policy manifest is in
 `docs/stability/milestone-1-event-reliability.md`.
 
+## Home Assistant switch synchronization
+
+The HA switch slice separates local intent, authoritative model state, and
+publication results:
+
+- `VIEW_EVENT_HA_SWITCH_ST` carries a generation-tagged local command.
+- `VIEW_EVENT_HA_SWITCH_SET` is replaceable state keyed by switch index.
+- `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` returns the generation, acceptance
+  status, and controller-authoritative rollback value.
+
+`ha_switch_sync` is the pure in-process module at the synchronization seam. It
+owns generations, debounce state, accepted values, stale-result filtering, and
+rollback decisions. `ha_switch_screen.c` adapts those actions to LVGL widgets
+and one-shot timers. Toggle input publishes immediately; arc and slider input
+uses a 200 ms quiet-period debounce. Model state cancels pending local timers
+and is applied with command emission suppressed.
+
+`ha_switch.c` owns MQTT protocol and NVS state only. It does not include LVGL,
+hold a screen pointer, or acquire the LVGL lock. A local publish is confirmed
+only when ESP-MQTT accepts it with a non-negative message id; otherwise the
+screen receives an explicit rejection or rolls back after its 2 second result
+timeout.
+
+The detailed contract and host scenarios are in
+`docs/stability/milestone-2-ha-state-sync.md`.
+
 ## Other event loops
 
 | Handle | Base | Created in | Purpose |
@@ -187,6 +213,7 @@ Verifying changes:
 
 ```bash
 python3 scripts/dev_check.py --skip-build
+python3 scripts/test_ha_switch_sync.py       # pure HA generation/debounce state
 python3 scripts/test_ha_switch_protocol.py   # for HA/MQTT protocol changes
 ./dev build                                  # full firmware build when needed
 ```

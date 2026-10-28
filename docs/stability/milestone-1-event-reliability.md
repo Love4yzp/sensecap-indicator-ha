@@ -72,8 +72,9 @@ the payload only while its subscribed handler is running.
 | `VIEW_EVENT_MQTT_ADDR_CHANGED` | HA configuration LVGL callback | HA configuration view | `NULL` | Critical configuration command. |
 | `VIEW_EVENT_HA_ADDR_DISPLAY` | HA MQTT initialization | HA configuration view | `NULL` | Replaceable state/refresh notification. |
 | `VIEW_EVENT_HA_SENSOR` | MQTT callback | no current consumer | `struct view_data_ha_sensor_data` | Replaceable state, latest per HA sensor index. |
-| `VIEW_EVENT_HA_SWITCH_ST` | HA LVGL widgets | HA switch controller | `struct view_data_ha_switch_data` | Critical user command; no debounce or state-echo change in this stage. |
-| `VIEW_EVENT_HA_SWITCH_SET` | MQTT callback and restore task | HA switch controller/view | `struct view_data_ha_switch_data` | Critical inbound command; preserve ordering and every value. |
+| `VIEW_EVENT_HA_SWITCH_ST` | HA LVGL widgets | HA switch controller | `struct view_data_ha_switch_command` | Critical generation-tagged user command. Continuous controls are debounced by the HA screen. |
+| `VIEW_EVENT_HA_SWITCH_SET` | MQTT callback and restore task | HA switch screen | `struct view_data_ha_switch_data` | Replaceable authoritative state, latest per switch index. |
+| `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` | HA switch controller | HA switch screen | `struct view_data_ha_switch_publish_result` | Critical generation-tagged command result with the controller's authoritative rollback value. |
 
 ## Interface and seam decision
 
@@ -215,12 +216,11 @@ discard a later successful list. This replaces the former one-bit
 `discard_next_list` coupling without exposing LVGL or transport details through
 the state module interface.
 
-HA switch screen slots track the last accepted value from both local commands
-and model-driven updates. Programmatic application and rejection rollback use
-a slot-local suppression guard, so LVGL `VALUE_CHANGED` re-entry updates the
-visual state without emitting a second HA command. This guard is deliberately
-scoped to rollback/model synchronization; HA state echo and input debounce
-remain outside this stage.
+At Milestone 1 completion, HA switch screen slots tracked the last accepted
+value and suppressed programmatic `VALUE_CHANGED` re-entry. Milestone 2
+supersedes that local-only bookkeeping with generation-tagged synchronization,
+continuous-input debounce, explicit MQTT publish results, and keyed inbound
+state. See `docs/stability/milestone-2-ha-state-sync.md`.
 
 ## Sleep/shutdown idempotency
 
@@ -307,7 +307,7 @@ the event-reliability stage.
 ## Explicitly deferred
 
 - credential log redaction;
-- HA widget state-echo suppression;
-- HA slider/arc debounce or persistence policy;
+- HA switch state synchronization and slider/arc debounce were deferred at
+  Milestone 1 completion and are implemented in Milestone 2;
 - RP2040 firmware or wire-protocol changes;
 - BSP, LCD/touch, DMA/timing, partition, or eFuse changes.
