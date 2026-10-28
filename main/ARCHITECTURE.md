@@ -88,11 +88,14 @@ The internal `view_event_adapter.h` seam separates policy from transport.
 Firmware uses `view_event_esp_adapter.c`; host tests substitute a controllable
 adapter while exercising only the public module interface. Runtime domains
 must not include the adapter header or call the view transport directly.
+Subscriptions are append-only after startup registration. Dispatch reads the
+published subscription count without taking the mutable-state lock, so a
+transport-accepted command cannot be discarded by later lock contention.
 
 | Semantic category | Queue policy | Full/error outcome | Observable counters |
 | --- | --- | --- | --- |
-| Critical command | Three fixed 5 ms adapter attempts; 15 ms maximum transport wait | `VIEW_EVENT_DELIVERY_REJECTED`, centralized error log; caller must not advance local state | enqueued, retries, rejected, dispatched |
-| Replaceable state | Zero-wait synchronization and queue token; latest value coalesces by event/key | `VIEW_EVENT_DELIVERY_DROPPED`, centralized error log | enqueued, coalesced, dropped, dispatched, synchronization busy |
+| Critical command | Three fixed 5 ms adapter attempts; 15 ms maximum transport wait; accepted commands dispatch through the append-only subscriber snapshot | `VIEW_EVENT_DELIVERY_REJECTED`, centralized error log; caller must not advance local state | enqueued, retries, rejected, dispatched after handler execution |
+| Replaceable state | Zero-wait producer synchronization and queue token; latest value coalesces by event/key; a consumed token moves to the adapter retry queue while internal synchronization is busy | `VIEW_EVENT_DELIVERY_DROPPED`, centralized error log | enqueued, coalesced, dropped, dispatched after handler execution, synchronization busy |
 
 Sensor state is keyed by sensor type, and Home Assistant sensor state by entity
 index. Other state events keep one latest value per event. Payloads are copied

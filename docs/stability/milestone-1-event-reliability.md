@@ -122,9 +122,17 @@ internal adapter seam.
 The ESP production adapter keeps the existing queue depth (10) and task stack
 (10240 bytes). Critical commands use three module-owned 5 ms attempts, for a
 maximum 15 ms transport wait. Replaceable state uses zero-wait synchronization,
-a zero-wait token, and module-owned state slots. Slot
-mutation and token acceptance are serialized so concurrent producers cannot
-report a coalesced value that has no queued delivery token.
+a zero-wait token, and module-owned state slots. Slot mutation and token
+acceptance are serialized so concurrent producers cannot report a coalesced
+value that has no queued delivery token. If the delivery task consumes a state
+token while internal synchronization is busy, the production adapter moves
+that token to a dedicated retry queue sized to the complete slot set. Retry
+attempts remain bounded individually and never block a producer.
+
+Subscription registration is append-only during startup. A release/acquire
+publication of the subscriber count lets dispatch copy the stable prefix
+without the mutable-state lock. Consequently, a command counted as enqueued
+cannot later disappear because subscription synchronization was busy.
 
 State keys are:
 
@@ -184,6 +192,12 @@ the synchronous ESP-IDF scan, de-duplicates SSIDs, builds the existing payload,
 and publishes the result. The view-event delivery task only submits work and
 returns; it no longer scans and posts back into its own queue.
 
+Scan results receive three worker-owned bounded delivery attempts. The Wi-Fi
+view also owns a 15-second LVGL timer for every accepted scan request; receiving
+the list cancels it, while expiry clears pending state and hides the spinner.
+Thus permanent view-event queue pressure cannot leave the modal indefinitely
+pending, and synchronous scanning remains outside the view-event task.
+
 ## Sleep/shutdown idempotency
 
 The current button code uses independent global flags and posts shutdown from
@@ -207,6 +221,11 @@ Rejection restores the display and leaves the device awake. Release after
 factory reset cannot additionally emit shutdown. Existing consumers still own
 Wi-Fi stop and RP2040 shutdown behavior.
 
+`VIEW_EVENT_FACTORY_RESET` remains a compatibility notification with no
+subscriber. Its rejection is logged but cannot gate the local display-on,
+three-second NVS erase timer, or restart. The per-press state still emits the
+factory-reset action only once.
+
 ## Host verification
 
 `scripts/test_view_event_delivery.py` verifies through the public interface
@@ -216,8 +235,12 @@ that:
   adapter reports a full command queue;
 - a command retries centrally, succeeds after temporary fullness, and rejects
   after the fixed third attempt;
+- an accepted command dispatches through subscription-lock contention and is
+  counted as dispatched only after handler execution;
 - state publication returns promptly and counts a drop when internal
   synchronization is busy;
+- a consumed state token is deferred during repeated dispatch contention, and
+  a later same-key value still reaches its subscriber;
 - same-key sensor state coalesces while different keys retain separate
   deliveries;
 - adapter-full state is dropped and counted;
@@ -227,9 +250,12 @@ that:
 `scripts/test_button_press_state.py` verifies rejected shutdown remains
 retryable until explicit acceptance, new-press reset,
 factory-reset/shutdown exclusion, and one restart action for a sleeping long
-hold. `scripts/test_wifi_scan_worker.py` verifies requests return without
-running a scan inline, pending requests coalesce, adapter-busy returns promptly,
-and result construction preserves the latest connection snapshot.
+hold. It also statically checks that compatibility-notification rejection
+cannot gate local factory reset. `scripts/test_wifi_scan_worker.py` verifies
+requests return without running a scan inline, pending requests coalesce,
+adapter-busy returns promptly, result construction preserves the latest
+connection snapshot, result retries remain bounded under queue pressure, and
+the view timeout always clears pending/spinner state.
 
 ## Explicitly deferred
 

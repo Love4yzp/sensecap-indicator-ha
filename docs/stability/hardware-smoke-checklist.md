@@ -61,6 +61,8 @@ command console, Wi-Fi, MQTT, and Home Assistant logic.
   continues refreshing.
 - [ ] Exercise rapid UI input while Wi-Fi scan/results and sensor updates are
   active; confirm queue pressure does not freeze rendering or touch callbacks.
+- [ ] If a Wi-Fi scan result cannot be delivered, confirm the spinner stops
+  within 15 seconds and a later scan can be requested.
 
 ## 3. Backlight and sleep/wake
 
@@ -172,6 +174,8 @@ including Wi-Fi and application configuration.
 - [ ] Hold the user button for at least 10 seconds.
 - [ ] Confirm the log reports `factory reset`, the display turns on, and the
   device waits approximately 3 seconds.
+- [ ] Confirm a failed compatibility notification does not prevent that local
+  NVS erase/restart sequence, and only one reset timer starts per press.
 - [ ] Confirm NVS is erased and the ESP32-S3 restarts.
 - [ ] Confirm Wi-Fi configuration is absent and the Wi-Fi setup screen opens.
 - [ ] Confirm display settings return to brightness 80 with sleep disabled.
