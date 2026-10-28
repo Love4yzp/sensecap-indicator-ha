@@ -34,6 +34,41 @@ static bool _wifi_modal_is_visible(void) {
 
 static bool s_discard_next_list = false;
 static bool s_wifi_scan_pending = false;
+static lv_timer_t *s_wifi_scan_timeout_timer = NULL;
+
+#define WIFI_SCAN_TIMEOUT_MS 15000
+
+static void _wifi_scan_timeout_cb(lv_timer_t *timer) {
+    (void)timer;
+    s_wifi_scan_timeout_timer = NULL;
+    s_wifi_scan_pending = false;
+    ESP_LOGE(TAG, "wifi scan result timed out");
+    if(s_wifi_spinner) {
+        lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void _wifi_scan_timeout_cancel(void) {
+    if(s_wifi_scan_timeout_timer) {
+        lv_timer_delete(s_wifi_scan_timeout_timer);
+        s_wifi_scan_timeout_timer = NULL;
+    }
+}
+
+static void _wifi_scan_timeout_start(void) {
+    _wifi_scan_timeout_cancel();
+    s_wifi_scan_timeout_timer =
+        lv_timer_create(_wifi_scan_timeout_cb, WIFI_SCAN_TIMEOUT_MS, NULL);
+    if(s_wifi_scan_timeout_timer) {
+        lv_timer_set_repeat_count(s_wifi_scan_timeout_timer, 1);
+    } else {
+        s_wifi_scan_pending = false;
+        ESP_LOGE(TAG, "failed to create wifi scan timeout");
+        if(s_wifi_spinner) {
+            lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
 
 static void _hide_wifi_modal(void) {
     if(s_connect_screen) {
@@ -127,7 +162,9 @@ static void _show_wifi_modal(void) {
     view_event_delivery_t delivery =
         view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
     s_wifi_scan_pending = delivery == VIEW_EVENT_DELIVERY_ENQUEUED;
-    if(!s_wifi_scan_pending) {
+    if(s_wifi_scan_pending) {
+        _wifi_scan_timeout_start();
+    } else {
         ESP_LOGE(TAG, "wifi scan request rejected: delivery=%d", (int)delivery);
         if(s_wifi_spinner) {
             lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);
@@ -272,19 +309,23 @@ static void _view_event_handler(
             lv_port_sem_take();
             _ensure_wifi_modal();
             wifi_list_screen_show_spinner(s_list_screen);
+            s_wifi_scan_pending = true;
+            _wifi_scan_timeout_start();
             lv_port_sem_give();
             break;
 
         case VIEW_EVENT_WIFI_LIST: {
             ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_LIST");
             s_wifi_scan_pending = false;
+            lv_port_sem_take();
+            _wifi_scan_timeout_cancel();
             if(s_discard_next_list) {
                 s_discard_next_list = false;
                 ESP_LOGI(TAG, "discard stale scan result (user backed out)");
+                lv_port_sem_give();
                 break;
             }
             struct view_data_wifi_list *p_list = (struct view_data_wifi_list *)event_data;
-            lv_port_sem_take();
             _ensure_wifi_modal();
             wifi_list_screen_update(s_list_screen, p_list);
             lv_port_sem_give();

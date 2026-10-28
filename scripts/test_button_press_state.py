@@ -86,6 +86,18 @@ class ButtonPressStateTests(unittest.TestCase):
             )
             subprocess.run([str(binary)], cwd=ROOT, check=True, timeout=2)
 
+    def test_factory_reset_notification_cannot_gate_local_reset(self) -> None:
+        source = (ROOT / "main" / "btn" / "btn.c").read_text(encoding="utf-8")
+        factory_case = source.split(
+            "case BUTTON_PRESS_ACTION_FACTORY_RESET:", 1
+        )[1].split("case BUTTON_PRESS_ACTION_NONE:", 1)[0]
+        rejected = factory_case.split(
+            "if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED)", 1
+        )[1].split("}", 1)[0]
+        self.assertNotIn("break;", rejected)
+        self.assertIn("esp_timer_create(", factory_case)
+        self.assertIn("esp_timer_start_once(", factory_case)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

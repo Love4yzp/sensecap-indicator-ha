@@ -12,6 +12,7 @@
 #define WIFI_SCAN_WORKER_QUEUE_LENGTH 1
 #define WIFI_SCAN_WORKER_STACK_SIZE (5 * 1024)
 #define WIFI_SCAN_WORKER_PRIORITY 10
+#define WIFI_SCAN_RESULT_RETRY_DELAY_MS 10
 
 static QueueHandle_t s_request_queue;
 static wifi_scan_worker_execute_t s_execute;
@@ -105,4 +106,9 @@ bool wifi_scan_worker_adapter_scan(
         (unsigned)ap_count,
         (unsigned)available);
     return true;
+}
+
+void wifi_scan_worker_adapter_retry_delay(void)
+{
+    vTaskDelay(pdMS_TO_TICKS(WIFI_SCAN_RESULT_RETRY_DELAY_MS));
 }

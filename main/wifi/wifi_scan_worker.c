@@ -6,6 +6,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#define WIFI_SCAN_RESULT_DELIVERY_ATTEMPTS 3
+
 #ifdef ESP_PLATFORM
 #include "esp_log.h"
 #define WIFI_SCAN_LOG_ERROR(...) ESP_LOGE("wifi-scan", __VA_ARGS__)
@@ -62,12 +64,23 @@ static void wifi_scan_worker_execute(
         item->rssi = records[i].rssi;
     }
 
-    view_event_delivery_t delivery = view_event_post_command(
-        VIEW_EVENT_WIFI_LIST, &list, sizeof(list));
-    if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
-        WIFI_SCAN_LOG_ERROR(
-            "scan result rejected: delivery=%d", (int)delivery);
+    view_event_delivery_t delivery = VIEW_EVENT_DELIVERY_REJECTED;
+    for (unsigned attempt = 0;
+         attempt < WIFI_SCAN_RESULT_DELIVERY_ATTEMPTS;
+         attempt++) {
+        delivery = view_event_post_command(
+            VIEW_EVENT_WIFI_LIST, &list, sizeof(list));
+        if (delivery == VIEW_EVENT_DELIVERY_ENQUEUED) {
+            return;
+        }
+        if (attempt + 1 < WIFI_SCAN_RESULT_DELIVERY_ATTEMPTS) {
+            wifi_scan_worker_adapter_retry_delay();
+        }
     }
+    WIFI_SCAN_LOG_ERROR(
+        "scan result rejected after %u worker attempts: delivery=%d",
+        WIFI_SCAN_RESULT_DELIVERY_ATTEMPTS,
+        (int)delivery);
 }
 
 bool wifi_scan_worker_init(void)

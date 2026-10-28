@@ -90,7 +90,6 @@ static void _btn_long_press_hold_callback(void *arg) {
                     TAG,
                     "factory reset command rejected: delivery=%d",
                     (int)delivery);
-                break;
             }
             bool st = 1;
             view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));

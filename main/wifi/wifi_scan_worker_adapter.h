@@ -20,5 +20,6 @@ bool wifi_scan_worker_adapter_init(wifi_scan_worker_execute_t execute);
 bool wifi_scan_worker_adapter_submit(const struct view_data_wifi_st *state);
 bool wifi_scan_worker_adapter_scan(
     struct wifi_scan_record *records, size_t capacity, size_t *count);
+void wifi_scan_worker_adapter_retry_delay(void);
 
 #endif /* WIFI_SCAN_WORKER_ADAPTER_H */
