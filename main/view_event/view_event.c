@@ -28,6 +28,7 @@ enum view_event_key_kind {
     VIEW_EVENT_KEY_SINGLETON = 0,
     VIEW_EVENT_KEY_SENSOR_TYPE,
     VIEW_EVENT_KEY_HA_SENSOR_INDEX,
+    VIEW_EVENT_KEY_HA_SWITCH_INDEX,
 };
 
 struct view_event_descriptor {
@@ -84,9 +85,11 @@ static const struct view_event_descriptor s_descriptors[VIEW_EVENT_ALL] = {
     [VIEW_EVENT_HA_SENSOR] = STATE_KEYED(
         struct view_data_ha_sensor_data, VIEW_EVENT_KEY_HA_SENSOR_INDEX),
     [VIEW_EVENT_HA_SWITCH_ST] =
-        COMMAND(struct view_data_ha_switch_data),
-    [VIEW_EVENT_HA_SWITCH_SET] =
-        COMMAND(struct view_data_ha_switch_data),
+        COMMAND(struct view_data_ha_switch_command),
+    [VIEW_EVENT_HA_SWITCH_SET] = STATE_KEYED(
+        struct view_data_ha_switch_data, VIEW_EVENT_KEY_HA_SWITCH_INDEX),
+    [VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT] =
+        COMMAND(struct view_data_ha_switch_publish_result),
 };
 
 #undef COMMAND
@@ -153,6 +156,9 @@ static uint32_t view_event_state_key(
         case VIEW_EVENT_KEY_HA_SENSOR_INDEX:
             return (uint32_t)(
                 (const struct view_data_ha_sensor_data *)payload)->index;
+        case VIEW_EVENT_KEY_HA_SWITCH_INDEX:
+            return (uint32_t)(
+                (const struct view_data_ha_switch_data *)payload)->index;
         case VIEW_EVENT_KEY_SINGLETON:
         default:
             return 0;

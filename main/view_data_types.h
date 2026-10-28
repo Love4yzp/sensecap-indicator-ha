@@ -137,6 +137,19 @@ struct view_data_ha_switch_data {
     int     value;
 };
 
+struct view_data_ha_switch_command {
+    uint8_t  index;
+    int      value;
+    uint32_t generation;
+};
+
+struct view_data_ha_switch_publish_result {
+    uint8_t  index;
+    int      value;
+    uint32_t generation;
+    bool     accepted;
+};
+
 /* ── View-event interface contract ───────────────────────────────────────── */
 
 /*
@@ -181,8 +194,9 @@ enum view_event_id {
     VIEW_EVENT_MQTT_ADDR_CHANGED,       // NULL; command
     VIEW_EVENT_HA_ADDR_DISPLAY,         // NULL refresh notification; state
     VIEW_EVENT_HA_SENSOR,               // struct view_data_ha_sensor_data; keyed state
-    VIEW_EVENT_HA_SWITCH_ST,             // struct view_data_ha_switch_data; command
-    VIEW_EVENT_HA_SWITCH_SET,            // struct view_data_ha_switch_data; command
+    VIEW_EVENT_HA_SWITCH_ST,             // struct view_data_ha_switch_command; command
+    VIEW_EVENT_HA_SWITCH_SET,            // struct view_data_ha_switch_data; keyed state
+    VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT, // struct view_data_ha_switch_publish_result; command result
 
     VIEW_EVENT_ALL,
 };

@@ -1,5 +1,7 @@
 #include "ha_switch_screen.h"
+#include "ha_switch_sync.h"
 
+#include "esp_err.h"
 #include "esp_log.h"
 #include "home_assistant_config.h"
 #include "lv_port.h"
@@ -12,6 +14,8 @@
 #include <string.h>
 
 #define SWITCH_SLOT_COUNT 8
+#define HA_SWITCH_DEBOUNCE_MS 200
+#define HA_SWITCH_RESULT_TIMEOUT_MS 2000
 
 #define TILE_WIDTH 480
 #define HEADER_HEIGHT 85
@@ -52,14 +56,17 @@ typedef struct {
     const lv_image_dsc_t *icon_off;
     void *aux;
     widget_update_fn update;
-    int accepted_value;
+    ha_switch_sync_t sync;
+    lv_timer_t *debounce_timer;
+    lv_timer_t *result_timer;
+    uint32_t result_generation;
     bool suppress_post;
 } switch_slot_t;
 
-struct ha_switch_screen {
+typedef struct {
     switch_slot_t slots[SWITCH_SLOT_COUNT];
     bool created;
-};
+} ha_switch_screen_t;
 
 typedef struct {
     const lv_image_dsc_t *icon;
@@ -111,21 +118,159 @@ static const sensor_card_spec_t mix_sensor_cards[] = {
     },
 };
 
-static bool _post_switch_value(int index, int value)
+static void _apply_slot_value(switch_slot_t *slot, int value)
 {
-    struct view_data_ha_switch_data switch_data = {
-        .index = index,
-        .value = value,
-    };
+    slot->suppress_post = true;
+    slot->update(slot->widget, value, slot->aux);
+    slot->suppress_post = false;
+}
 
-    ESP_LOGI(TAG, "switch%d: %d", index + 1, value);
-    view_event_delivery_t result = view_event_post_command(
-        VIEW_EVENT_HA_SWITCH_ST, &switch_data, sizeof(switch_data));
-    if (result != VIEW_EVENT_DELIVERY_ENQUEUED) {
-        ESP_LOGE(TAG, "failed to post switch event: delivery=%d", (int)result);
+static void _apply_sync_action(
+    switch_slot_t *slot, ha_switch_sync_action_t action)
+{
+    if (action.kind == HA_SWITCH_SYNC_ACTION_APPLY ||
+        action.kind == HA_SWITCH_SYNC_ACTION_CANCEL_AND_APPLY) {
+        _apply_slot_value(slot, action.value);
+    }
+}
+
+static void _cancel_debounce_timer(switch_slot_t *slot)
+{
+    if (slot->debounce_timer != NULL) {
+        lv_timer_delete(slot->debounce_timer);
+        slot->debounce_timer = NULL;
+    }
+}
+
+static void _cancel_result_timer(switch_slot_t *slot)
+{
+    if (slot->result_timer != NULL) {
+        lv_timer_delete(slot->result_timer);
+        slot->result_timer = NULL;
+    }
+}
+
+static void _result_timeout_cb(lv_timer_t *timer)
+{
+    switch_slot_t *slot =
+        (switch_slot_t *)lv_timer_get_user_data(timer);
+    if (slot == NULL) {
+        return;
+    }
+
+    slot->result_timer = NULL;
+    ESP_LOGE(
+        TAG,
+        "switch publish result timed out: index=%d generation=%lu",
+        slot->index,
+        (unsigned long)slot->result_generation);
+    ha_switch_sync_action_t action = ha_switch_sync_result_timeout(
+        &slot->sync, slot->result_generation);
+    _apply_sync_action(slot, action);
+}
+
+static bool _start_result_timer(
+    switch_slot_t *slot, uint32_t generation)
+{
+    _cancel_result_timer(slot);
+    slot->result_generation = generation;
+    slot->result_timer = lv_timer_create(
+        _result_timeout_cb, HA_SWITCH_RESULT_TIMEOUT_MS, slot);
+    if (slot->result_timer != NULL) {
+        lv_timer_set_repeat_count(slot->result_timer, 1);
+        return true;
+    } else {
+        ESP_LOGE(
+            TAG,
+            "failed to create switch result timer: index=%d",
+            slot->index);
         return false;
     }
-    return true;
+}
+
+static void _publish_action(
+    switch_slot_t *slot, ha_switch_sync_action_t action)
+{
+    if (action.kind != HA_SWITCH_SYNC_ACTION_PUBLISH) {
+        return;
+    }
+
+    struct view_data_ha_switch_command command = {
+        .index = (uint8_t)slot->index,
+        .value = action.value,
+        .generation = action.generation,
+    };
+
+    ESP_LOGI(
+        TAG,
+        "switch%d: %d generation=%lu",
+        slot->index + 1,
+        action.value,
+        (unsigned long)action.generation);
+    view_event_delivery_t delivery = view_event_post_command(
+        VIEW_EVENT_HA_SWITCH_ST, &command, sizeof(command));
+    if (delivery == VIEW_EVENT_DELIVERY_ENQUEUED) {
+        if (!_start_result_timer(slot, action.generation)) {
+            ha_switch_sync_action_t rollback =
+                ha_switch_sync_result_timeout(
+                    &slot->sync, action.generation);
+            _apply_sync_action(slot, rollback);
+        }
+        return;
+    }
+
+    ESP_LOGE(
+        TAG,
+        "failed to post switch event: delivery=%d",
+        (int)delivery);
+    ha_switch_sync_action_t rollback = ha_switch_sync_local_rejected(
+        &slot->sync, action.generation);
+    _apply_sync_action(slot, rollback);
+}
+
+static void _debounce_timer_cb(lv_timer_t *timer)
+{
+    switch_slot_t *slot =
+        (switch_slot_t *)lv_timer_get_user_data(timer);
+    if (slot == NULL) {
+        return;
+    }
+
+    slot->debounce_timer = NULL;
+    _publish_action(slot, ha_switch_sync_debounce_elapsed(&slot->sync));
+}
+
+static void _schedule_debounce(switch_slot_t *slot)
+{
+    if (slot->debounce_timer != NULL) {
+        lv_timer_reset(slot->debounce_timer);
+        return;
+    }
+
+    slot->debounce_timer = lv_timer_create(
+        _debounce_timer_cb, HA_SWITCH_DEBOUNCE_MS, slot);
+    if (slot->debounce_timer != NULL) {
+        lv_timer_set_repeat_count(slot->debounce_timer, 1);
+        return;
+    }
+
+    ESP_LOGE(
+        TAG,
+        "failed to create switch debounce timer: index=%d",
+        slot->index);
+    _publish_action(slot, ha_switch_sync_debounce_elapsed(&slot->sync));
+}
+
+static void _handle_user_value(
+    switch_slot_t *slot, int value, ha_switch_sync_mode_t mode)
+{
+    ha_switch_sync_action_t action =
+        ha_switch_sync_user_changed(&slot->sync, value, mode);
+    if (action.kind == HA_SWITCH_SYNC_ACTION_SCHEDULE) {
+        _schedule_debounce(slot);
+    } else {
+        _publish_action(slot, action);
+    }
 }
 
 static void _set_toggle_icon(switch_slot_t *slot, bool checked)
@@ -135,18 +280,6 @@ static void _set_toggle_icon(switch_slot_t *slot, bool checked)
     }
 
     lv_image_set_src(slot->icon, checked ? slot->icon_on : slot->icon_off);
-}
-
-static void _apply_slot_value(switch_slot_t *slot, int value)
-{
-    slot->suppress_post = true;
-    slot->update(slot->widget, value, slot->aux);
-    slot->suppress_post = false;
-}
-
-static void _restore_slot_value(switch_slot_t *slot)
-{
-    _apply_slot_value(slot, slot->accepted_value);
 }
 
 static void _switch_toggle_event_cb(lv_event_t *e)
@@ -166,11 +299,7 @@ static void _switch_toggle_event_cb(lv_event_t *e)
     if (slot->suppress_post) {
         return;
     }
-    if (_post_switch_value(slot->index, value)) {
-        slot->accepted_value = value;
-    } else {
-        _restore_slot_value(slot);
-    }
+    _handle_user_value(slot, value, HA_SWITCH_SYNC_IMMEDIATE);
 }
 
 static void _arc_event_cb(lv_event_t *e)
@@ -193,11 +322,7 @@ static void _arc_event_cb(lv_event_t *e)
     if (slot->suppress_post) {
         return;
     }
-    if (_post_switch_value(slot->index, value)) {
-        slot->accepted_value = value;
-    } else {
-        _restore_slot_value(slot);
-    }
+    _handle_user_value(slot, value, HA_SWITCH_SYNC_DEBOUNCED);
 }
 
 static void _slider_event_cb(lv_event_t *e)
@@ -215,11 +340,7 @@ static void _slider_event_cb(lv_event_t *e)
     if (slot->suppress_post) {
         return;
     }
-    if (_post_switch_value(slot->index, value)) {
-        slot->accepted_value = value;
-    } else {
-        _restore_slot_value(slot);
-    }
+    _handle_user_value(slot, value, HA_SWITCH_SYNC_DEBOUNCED);
 }
 
 static void _update_toggle(lv_obj_t *w, int value, void *aux)
@@ -363,7 +484,7 @@ static lv_obj_t *_create_large_toggle(lv_obj_t *tile, switch_slot_t *slot, int32
     slot->icon_on = icon_on;
     slot->icon_off = icon_off;
     slot->update = _update_toggle;
-    slot->accepted_value = 0;
+    ha_switch_sync_init(&slot->sync, 0);
     lv_obj_add_event_cb(btn, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return btn;
 }
@@ -388,7 +509,7 @@ static lv_obj_t *_create_row_toggle(lv_obj_t *tile, switch_slot_t *slot, int32_t
     slot->icon_on = icon_on;
     slot->icon_off = icon_off;
     slot->update = _update_toggle;
-    slot->accepted_value = 0;
+    ha_switch_sync_init(&slot->sync, 0);
     lv_obj_add_event_cb(btn, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return btn;
 }
@@ -419,7 +540,7 @@ static lv_obj_t *_create_embedded_switch(lv_obj_t *tile, switch_slot_t *slot, in
 
     slot->widget = toggle;
     slot->update = _update_toggle;
-    slot->accepted_value = 1;
+    ha_switch_sync_init(&slot->sync, 1);
     lv_obj_add_event_cb(toggle, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return toggle;
 }
@@ -463,7 +584,7 @@ static void _create_arc_card(lv_obj_t *tile, switch_slot_t *slot)
     slot->widget = arc;
     slot->aux = data;
     slot->update = _update_arc;
-    slot->accepted_value = 70;
+    ha_switch_sync_init(&slot->sync, 70);
     lv_obj_add_event_cb(arc, _arc_event_cb, LV_EVENT_VALUE_CHANGED, slot);
 }
 
@@ -494,7 +615,7 @@ static void _create_slider_card(lv_obj_t *tile, switch_slot_t *slot)
 
     slot->widget = slider;
     slot->update = _update_slider;
-    slot->accepted_value = 80;
+    ha_switch_sync_init(&slot->sync, 80);
     lv_obj_add_event_cb(slider, _slider_event_cb, LV_EVENT_VALUE_CHANGED, slot);
 }
 
@@ -534,11 +655,87 @@ static void _create_ctrl_tile(ha_switch_screen_t *s, lv_obj_t *tile)
     _create_slider_card(tile, &s->slots[7]);
 }
 
-ha_switch_screen_t *ha_switch_screen_create(void)
+static switch_slot_t *_slot_for(
+    ha_switch_screen_t *screen, uint8_t index)
+{
+    if (screen == NULL || index >= SWITCH_SLOT_COUNT) {
+        return NULL;
+    }
+    switch_slot_t *slot = &screen->slots[index];
+    if (slot->widget == NULL || slot->update == NULL) {
+        return NULL;
+    }
+    return slot;
+}
+
+static void _handle_model_update(
+    ha_switch_screen_t *screen,
+    const struct view_data_ha_switch_data *model)
+{
+    switch_slot_t *slot = _slot_for(screen, model->index);
+    if (slot == NULL) {
+        ESP_LOGW(TAG, "invalid model switch index %u", (unsigned)model->index);
+        return;
+    }
+
+    _cancel_debounce_timer(slot);
+    _cancel_result_timer(slot);
+    ha_switch_sync_action_t action =
+        ha_switch_sync_model_changed(&slot->sync, model->value);
+    _apply_sync_action(slot, action);
+}
+
+static void _handle_publish_result(
+    ha_switch_screen_t *screen,
+    const struct view_data_ha_switch_publish_result *result)
+{
+    switch_slot_t *slot = _slot_for(screen, result->index);
+    if (slot == NULL) {
+        ESP_LOGW(
+            TAG,
+            "invalid publish result switch index %u",
+            (unsigned)result->index);
+        return;
+    }
+
+    if (slot->result_timer != NULL &&
+        slot->result_generation == result->generation) {
+        _cancel_result_timer(slot);
+    }
+    ha_switch_sync_action_t action = ha_switch_sync_publish_result(
+        &slot->sync,
+        result->generation,
+        result->value,
+        result->accepted);
+    _apply_sync_action(slot, action);
+}
+
+static void _view_event_handler(
+    void *context, enum view_event_id id, const void *event_data)
+{
+    ha_switch_screen_t *screen = (ha_switch_screen_t *)context;
+    if (screen == NULL || !screen->created || event_data == NULL) {
+        return;
+    }
+
+    lv_port_sem_take();
+    if (id == VIEW_EVENT_HA_SWITCH_SET) {
+        _handle_model_update(
+            screen,
+            (const struct view_data_ha_switch_data *)event_data);
+    } else if (id == VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT) {
+        _handle_publish_result(
+            screen,
+            (const struct view_data_ha_switch_publish_result *)event_data);
+    }
+    lv_port_sem_give();
+}
+
+void ha_switch_screen_create(void)
 {
     ha_switch_screen_t *s = &_instance;
     if (s->created) {
-        return s;
+        return;
     }
 
     memset(s, 0, sizeof(*s));
@@ -550,7 +747,7 @@ ha_switch_screen_t *ha_switch_screen_create(void)
     if (!ctrl_tile || !mix_tile) {
         ESP_LOGE(TAG, "HA switch nav tiles are not initialized");
         lv_port_sem_give();
-        return s;
+        return;
     }
 
     _create_ctrl_tile(s, ctrl_tile);
@@ -558,28 +755,10 @@ ha_switch_screen_t *ha_switch_screen_create(void)
     s->created = true;
     lv_port_sem_give();
 
-    return s;
-}
-
-void ha_switch_screen_update(ha_switch_screen_t *s, int index, int value)
-{
-    if (!s || index < 0 || index >= SWITCH_SLOT_COUNT) {
-        ESP_LOGW(TAG, "invalid index %d", index);
-        return;
-    }
-
-    switch_slot_t *slot = &s->slots[index];
-    if (!slot->widget || !slot->update) {
-        ESP_LOGW(TAG, "widget[%d] is NULL", index);
-        return;
-    }
-
-    ESP_LOGI(TAG, "update index:%d value:%d", index, value);
-    slot->accepted_value = value;
-    _apply_slot_value(slot, value);
-}
-
-void ha_switch_screen_destroy(ha_switch_screen_t *s)
-{
-    (void)s;
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_HA_SWITCH_SET, _view_event_handler, s) ? ESP_OK : ESP_FAIL);
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT,
+        _view_event_handler,
+        s) ? ESP_OK : ESP_FAIL);
 }

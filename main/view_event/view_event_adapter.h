@@ -27,10 +27,12 @@ union view_event_payload_extent {
     struct view_data_sensor_history_data sensor_history;
     struct view_data_ha_sensor_data ha_sensor;
     struct view_data_ha_switch_data ha_switch;
+    struct view_data_ha_switch_command ha_switch_command;
+    struct view_data_ha_switch_publish_result ha_switch_publish_result;
 };
 
 #define VIEW_EVENT_MAX_PAYLOAD_SIZE sizeof(union view_event_payload_extent)
-#define VIEW_EVENT_MAX_STATE_SLOTS 24
+#define VIEW_EVENT_MAX_STATE_SLOTS 32
 
 union view_event_payload_storage {
     max_align_t alignment;

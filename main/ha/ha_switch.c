@@ -5,7 +5,6 @@
 #include "home_assistant_config.h"
 #include "cJSON.h"
 #include "storage_nvs.h"
-#include "lv_port.h"
 #include "esp_log.h"
 #include "mqtt_client.h"
 #include "freertos/FreeRTOS.h"
@@ -27,7 +26,6 @@ typedef struct ha_switch_entity {
 static ha_switch_entity_t ha_switch_entities[CONFIG_HA_SWITCH_ENTITY_NUM];
 static int switch_state[CONFIG_HA_SWITCH_ENTITY_NUM];
 static TaskHandle_t restore_task_handle = NULL;
-static ha_switch_screen_t *_screen = NULL;
 
 static void ha_ctrl_cfg_restore(void)
 {
@@ -52,34 +50,84 @@ static void ha_ctrl_cfg_save(void)
     }
 }
 
-static void publish_switch_state(const struct view_data_ha_switch_data *switch_data)
+static void publish_switch_result(
+    const struct view_data_ha_switch_command *command,
+    int authoritative_value,
+    bool accepted)
 {
-    if (!mqtt_ha_instance.mqtt_connected_flag) {
-        return;
+    struct view_data_ha_switch_publish_result result = {
+        .index = command->index,
+        .value = authoritative_value,
+        .generation = command->generation,
+        .accepted = accepted,
+    };
+    view_event_delivery_t delivery = view_event_post_command(
+        VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT, &result, sizeof(result));
+    if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+        ESP_LOGE(
+            TAG,
+            "switch publish result rejected: index=%u generation=%lu delivery=%d",
+            (unsigned)command->index,
+            (unsigned long)command->generation,
+            (int)delivery);
     }
+}
+
+static void publish_switch_state(
+    const struct view_data_ha_switch_command *command)
+{
+    bool accepted = false;
+    int authoritative_value = command->value;
 
     static const char *switch_keys[] = CONFIG_SWITCH_VALUE_KEYS;
     static const char *switch_topics[] = CONFIG_SWITCH_TOPICS_STATE;
 
-    if (switch_data->index >= 0 && switch_data->index < CONFIG_HA_SWITCH_ENTITY_NUM) {
-        char data_buf[MAX_DATA_BUF_LEN];
-        int len = snprintf(data_buf, sizeof(data_buf), "{\"%s\": %d}", switch_keys[switch_data->index], (int)switch_data->value);
-
-        if (len > 0 && len < MAX_DATA_BUF_LEN) {
-            esp_mqtt_client_publish(mqtt_ha_instance.mqtt_client, switch_topics[switch_data->index], data_buf, len, 0, 0);
-            switch_state[switch_data->index] = switch_data->value;
-            ha_ctrl_cfg_save();
-        } else {
-            ESP_LOGE(TAG, "Failed to format switch data");
-        }
+    if (command->index >= CONFIG_HA_SWITCH_ENTITY_NUM) {
+        ESP_LOGE(TAG, "Invalid switch index: %u", (unsigned)command->index);
     } else {
-        ESP_LOGE(TAG, "Invalid switch index: %d", switch_data->index);
-    }
-}
+        authoritative_value = switch_state[command->index];
+        if (!mqtt_ha_instance.mqtt_connected_flag ||
+            mqtt_ha_instance.mqtt_client == NULL) {
+            ESP_LOGE(
+                TAG,
+                "switch publish rejected while MQTT is disconnected: index=%u",
+                (unsigned)command->index);
+        } else {
+            char data_buf[MAX_DATA_BUF_LEN];
+            int len = snprintf(
+                data_buf,
+                sizeof(data_buf),
+                "{\"%s\": %d}",
+                switch_keys[command->index],
+                command->value);
 
-void ha_switch_attach_screen(ha_switch_screen_t *screen)
-{
-    _screen = screen;
+            if (len > 0 && len < MAX_DATA_BUF_LEN) {
+                int message_id = esp_mqtt_client_publish(
+                    mqtt_ha_instance.mqtt_client,
+                    switch_topics[command->index],
+                    data_buf,
+                    len,
+                    0,
+                    0);
+                accepted = message_id >= 0;
+                if (accepted) {
+                    switch_state[command->index] = command->value;
+                    authoritative_value = command->value;
+                    ha_ctrl_cfg_save();
+                } else {
+                    ESP_LOGE(
+                        TAG,
+                        "MQTT switch publish failed: index=%u result=%d",
+                        (unsigned)command->index,
+                        message_id);
+                }
+            } else {
+                ESP_LOGE(TAG, "Failed to format switch data");
+            }
+        }
+    }
+
+    publish_switch_result(command, authoritative_value, accepted);
 }
 
 static void restore_data_task(void *args)
@@ -88,12 +136,13 @@ static void restore_data_task(void *args)
 
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         struct view_data_ha_switch_data switch_data = {.index = i, .value = switch_state[i]};
-        view_event_delivery_t delivery = view_event_post_command(
+        view_event_delivery_t delivery = view_event_publish_state(
             VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
-        if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+        if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED &&
+            delivery != VIEW_EVENT_DELIVERY_COALESCED) {
             ESP_LOGE(
                 TAG,
-                "restore switch %d rejected: delivery=%d",
+                "restore switch %d dropped: delivery=%d",
                 i,
                 (int)delivery);
         }
@@ -114,18 +163,9 @@ static void view_event_handler(
     switch (id) {
         case VIEW_EVENT_HA_SWITCH_ST:
             ESP_LOGI(TAG, "event: VIEW_EVENT_HA_SWITCH_ST");
-            publish_switch_state((struct view_data_ha_switch_data *)event_data);
+            publish_switch_state(
+                (const struct view_data_ha_switch_command *)event_data);
             break;
-        case VIEW_EVENT_HA_SWITCH_SET: {
-            struct view_data_ha_switch_data *p = (struct view_data_ha_switch_data *)event_data;
-            ESP_LOGI(TAG, "VIEW_EVENT_HA_SWITCH_SET: switch index:%d value:%d\n", p->index, p->value);
-            if (_screen) {
-                lv_port_sem_take();
-                ha_switch_screen_update(_screen, p->index, p->value);
-                lv_port_sem_give();
-            }
-            break;
-        }
         default:
             ESP_LOGW(TAG, "Unhandled event: %ld", id);
             break;
@@ -152,8 +192,6 @@ void ha_switch_init(void)
 
     ESP_ERROR_CHECK(view_event_subscribe(
         VIEW_EVENT_HA_SWITCH_ST, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
-    ESP_ERROR_CHECK(view_event_subscribe(
-        VIEW_EVENT_HA_SWITCH_SET, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 }
 
 void ha_switch_subscribe(esp_mqtt_client_handle_t client)
@@ -170,7 +208,9 @@ void ha_switch_subscribe(esp_mqtt_client_handle_t client)
 
 int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, int data_len)
 {
-    if (strncmp(topic, ha_switch_entities[0].topic_set, topic_len) != 0) {
+    size_t expected_topic_len = strlen(ha_switch_entities[0].topic_set);
+    if (topic_len != (int)expected_topic_len ||
+        strncmp(topic, ha_switch_entities[0].topic_set, expected_topic_len) != 0) {
         return -1;
     }
 
@@ -191,12 +231,15 @@ int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, i
             if (cjson_item != NULL && cJSON_IsNumber(cjson_item)) {
                 struct view_data_ha_switch_data switch_data = {.index = i, .value = cjson_item->valueint};
                 ESP_LOGI(TAG, "MQTT message: %s set to %d", ha_switch_entities[i].key, switch_data.value);
-                view_event_delivery_t delivery = view_event_post_command(
+                switch_state[i] = switch_data.value;
+                ha_ctrl_cfg_save();
+                view_event_delivery_t delivery = view_event_publish_state(
                     VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
-                if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+                if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED &&
+                    delivery != VIEW_EVENT_DELIVERY_COALESCED) {
                     ESP_LOGE(
                         TAG,
-                        "MQTT switch update rejected: delivery=%d",
+                        "MQTT switch update dropped: delivery=%d",
                         (int)delivery);
                     cJSON_Delete(root);
                     return -1;
