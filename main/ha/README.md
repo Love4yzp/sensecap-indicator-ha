@@ -13,7 +13,7 @@ each feature slice owns its full stack (data model + MQTT protocol + UI componen
 | `ha_mqtt.c` | ~200 | MQTT client lifecycle: connect/disconnect/reconnect. Routes `MQTT_EVENT_DATA` to sensor and switch slices. Owns `mqtt_ha_instance`. |
 | `ha_config.c` | ~154 | Broker NVS config (`ha_cfg_get`/`ha_cfg_set`) + IP address modal view. |
 | `ha_sensor.c` | ~128 | Sensor entity metadata, subscribes to sensor MQTT topics, publishes built-in sensor readings, routes incoming sensor JSON to `VIEW_EVENT_HA_SENSOR`. |
-| `ha_switch.c` | Switch entity metadata, NVS state persistence, MQTT publish/subscribe, and generation-tagged publish results. UI-free. |
+| `ha_switch.c` | Switch entity metadata, in-memory authoritative state, MQTT publish/subscribe, and generation-tagged publish results. UI-free. |
 | `ha_switch_sync.c` | Pure generation/debounce/result state module. Owns stale-result filtering and rollback decisions. |
 | `ha_switch_screen.c` | Builds and owns all 8 switch widgets, LVGL timers, and direct subscriptions to model state/publish results. |
 | `ha_switch_screen.h` | Single idempotent `create` interface. |
@@ -30,8 +30,7 @@ indicator_ha_view_init()    (called from indicator_view.c)
 
 indicator_ha_model_init()   (called later from indicator_model.c)
   ha_sensor_init()          register VIEW_EVENT_SENSOR_DATA handler
-  ha_switch_init()          init entities, restore NVS state,
-                            publish authoritative startup values,
+  ha_switch_init()          init entities, publish zero startup values,
                             register VIEW_EVENT_HA_SWITCH_ST handler
   create ha_cfg_event_handle
   init mqtt_ha_instance
@@ -48,14 +47,14 @@ User changes a switch widget
   → toggle publishes immediately; arc/slider debounce for 200 ms
   → post VIEW_EVENT_HA_SWITCH_ST {index, value, generation}
   → ha_switch.c: publish to MQTT topic_state
-  → save NVS on client acceptance
+  → update in-memory controller state on client acceptance
   → post VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT
   → screen confirms or rolls back the matching generation
 
 MQTT broker sends switch command
   → ha_mqtt.c: MQTT_EVENT_DATA
   → ha_switch_on_mqtt_data()
-  → persist latest model value
+  → update latest in-memory model value
   → publish keyed VIEW_EVENT_HA_SWITCH_SET {index, value}
   → ha_switch_screen.c cancels local timers and applies under LVGL lock
 

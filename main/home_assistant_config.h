@@ -143,7 +143,7 @@ extern "C" {
 }
 
 #define CONFIG_SWITCH_DEFAULT_VALUES { \
-    0, 0, 1, 0, 70, 0, 1, 80 \
+    0, 0, 0, 0, 0, 0, 0, 0 \
 }
 
 #define CONFIG_SWITCH_TOPICS_STATE { \

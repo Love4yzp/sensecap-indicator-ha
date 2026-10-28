@@ -4,11 +4,9 @@
 #include "view_event.h"
 #include "home_assistant_config.h"
 #include "cJSON.h"
-#include "storage_nvs.h"
 #include "esp_log.h"
 #include "mqtt_client.h"
 
-#define HA_CFG_STORAGE "ha-cfg"
 #define MAX_DATA_BUF_LEN 64
 
 static const char *TAG = "ha-switch";
@@ -23,31 +21,6 @@ typedef struct ha_switch_entity {
 
 static ha_switch_entity_t ha_switch_entities[CONFIG_HA_SWITCH_ENTITY_NUM];
 static int switch_state[CONFIG_HA_SWITCH_ENTITY_NUM];
-static const int switch_defaults[CONFIG_HA_SWITCH_ENTITY_NUM] =
-    CONFIG_SWITCH_DEFAULT_VALUES;
-
-static void ha_ctrl_cfg_restore(void)
-{
-    size_t len = sizeof(switch_state);
-    esp_err_t ret = indicator_nvs_read(HA_CFG_STORAGE, switch_state, &len);
-
-    if (ret == ESP_OK && len == sizeof(switch_state)) {
-        ESP_LOGI(TAG, "ctrl config read successfully");
-    } else {
-        ESP_LOGW(TAG, "read control config failed, initializing to defaults");
-        memcpy(switch_state, switch_defaults, sizeof(switch_state));
-    }
-}
-
-static void ha_ctrl_cfg_save(void)
-{
-    esp_err_t ret = indicator_nvs_write(HA_CFG_STORAGE, switch_state, sizeof(switch_state));
-    if (ret != ESP_OK) {
-        ESP_LOGI(TAG, "ctrl cfg write err:%d", ret);
-    } else {
-        ESP_LOGI(TAG, "ctrl cfg write successful");
-    }
-}
 
 static void publish_switch_result(
     const struct view_data_ha_switch_command *command,
@@ -112,7 +85,6 @@ static void publish_switch_state(
                 if (accepted) {
                     switch_state[command->index] = command->value;
                     authoritative_value = command->value;
-                    ha_ctrl_cfg_save();
                 } else {
                     ESP_LOGE(
                         TAG,
@@ -129,7 +101,7 @@ static void publish_switch_state(
     publish_switch_result(command, authoritative_value, accepted);
 }
 
-static void publish_restored_switch_state(void)
+static void publish_initial_switch_state(void)
 {
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         struct view_data_ha_switch_data switch_data = {.index = i, .value = switch_state[i]};
@@ -139,12 +111,12 @@ static void publish_restored_switch_state(void)
             delivery != VIEW_EVENT_DELIVERY_COALESCED) {
             ESP_LOGE(
                 TAG,
-                "restore switch %d dropped: delivery=%d",
+                "initial switch %d dropped: delivery=%d",
                 i,
                 (int)delivery);
         }
 
-        ESP_LOGI(TAG, "Restored switch %d state: %d", i, switch_state[i]);
+        ESP_LOGI(TAG, "Initial switch %d state: %d", i, switch_state[i]);
     }
 }
 
@@ -179,8 +151,7 @@ void ha_switch_init(void)
         };
     }
 
-    ha_ctrl_cfg_restore();
-    publish_restored_switch_state();
+    publish_initial_switch_state();
 
     ESP_ERROR_CHECK(view_event_subscribe(
         VIEW_EVENT_HA_SWITCH_ST, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
@@ -220,7 +191,6 @@ int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, i
                 struct view_data_ha_switch_data switch_data = {.index = i, .value = cjson_item->valueint};
                 ESP_LOGI(TAG, "MQTT message: %s set to %d", ha_switch_entities[i].key, switch_data.value);
                 switch_state[i] = switch_data.value;
-                ha_ctrl_cfg_save();
                 view_event_delivery_t delivery = view_event_publish_state(
                     VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
                 if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED &&

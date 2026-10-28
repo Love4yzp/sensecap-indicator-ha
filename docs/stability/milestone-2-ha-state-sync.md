@@ -13,7 +13,7 @@ four semantic transitions:
 - a discrete or debounced user value;
 - expiration of the debounce window;
 - an MQTT publish result tagged with the local generation;
-- an authoritative model value received from MQTT or restored state.
+- an authoritative model value received from MQTT.
 
 The implementation owns generation allocation, pending debounce state, the
 last controller-confirmed value, stale-result rejection, and rollback choice.
@@ -28,12 +28,12 @@ longer owns a screen pointer or calls LVGL.
 | Event | Payload | Policy | Meaning |
 | --- | --- | --- | --- |
 | `VIEW_EVENT_HA_SWITCH_ST` | `struct view_data_ha_switch_command` | Critical command | A generation-tagged local command ready for MQTT publication. |
-| `VIEW_EVENT_HA_SWITCH_SET` | `struct view_data_ha_switch_data` | Replaceable state keyed by switch index | The latest authoritative model value from MQTT or persisted restore. |
+| `VIEW_EVENT_HA_SWITCH_SET` | `struct view_data_ha_switch_data` | Replaceable state keyed by switch index | The initial zero value or latest authoritative model value from MQTT. |
 | `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` | `struct view_data_ha_switch_publish_result` | Critical command result | Whether ESP-MQTT accepted the publish, plus the controller's authoritative rollback value. |
 
 The result value is deliberately authoritative even on rejection. If an older
 success result is lost and a later command fails, the screen still rolls back
-to the controller's persisted value rather than to a stale UI default.
+to the controller's latest in-memory value rather than to stale visible input.
 
 ## Runtime behavior
 
@@ -49,14 +49,15 @@ to the controller's persisted value rather than to a stale UI default.
 - `esp_mqtt_client_publish()` is accepted only when ESP-IDF returns a
   non-negative message id. Disconnected, formatting, outbox-full, and publish
   errors produce a negative result.
-- A successful local publish updates NVS before its result is emitted.
-- The screen and controller share the product defaults
-  `0,0,1,0,70,0,1,80`. When NVS has no saved switch state, rejection rollback
-  therefore returns to the value shown at startup rather than an unrelated
-  zero value.
-- Restored NVS/default state is published during HA model initialization. It
-  does not depend on an MQTT broker connection or subscription completing.
-- MQTT inbound values update NVS and publish keyed replaceable state.
+- A successful local publish updates the controller's in-memory value before
+  its result is emitted.
+- The screen and controller cold-start all eight values at zero. Switch values
+  are not restored from or persisted to NVS; HA/MQTT state is authoritative
+  after startup.
+- Initial zero state is published during HA model initialization. It does not
+  depend on an MQTT broker connection or subscription completing.
+- MQTT inbound values update in-memory controller state and publish keyed
+  replaceable state.
 - Model state cancels pending debounce and result timers, applies under the
   LVGL lock, and invalidates older local results.
 - Programmatic widget application retains the slot-local suppression guard, so
