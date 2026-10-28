@@ -137,7 +137,11 @@ static double monotonic_seconds(void)
 
 static view_event_delivery_t simulated_lvgl_callback(void)
 {
-    struct view_data_ha_switch_data switch_data = {.index = 0, .value = 1};
+    struct view_data_ha_switch_command switch_data = {
+        .index = 0,
+        .value = 1,
+        .generation = 1,
+    };
     return view_event_post_command(
         VIEW_EVENT_HA_SWITCH_ST, &switch_data, sizeof(switch_data));
 }
@@ -215,10 +219,32 @@ int main(void)
     assert(sensor_dispatches == 2);
     assert(last_sensor.sensor_type == SGP40_SENSOR_TVOC);
 
+    for (uint8_t i = 0; i < 8; i++) {
+        struct view_data_ha_switch_data switch_state = {
+            .index = i,
+            .value = i,
+        };
+        assert(view_event_publish_state(
+                   VIEW_EVENT_HA_SWITCH_SET,
+                   &switch_state,
+                   sizeof(switch_state)) ==
+               VIEW_EVENT_DELIVERY_ENQUEUED);
+    }
+    struct view_data_ha_switch_data latest_switch_state = {
+        .index = 7,
+        .value = 99,
+    };
+    assert(view_event_publish_state(
+               VIEW_EVENT_HA_SWITCH_SET,
+               &latest_switch_state,
+               sizeof(latest_switch_state)) ==
+           VIEW_EVENT_DELIVERY_COALESCED);
+    drain_all();
+
     view_event_stats_get(&stats);
-    assert(stats.state_enqueued == 2);
-    assert(stats.state_coalesced == 1);
-    assert(stats.state_dispatched == 2);
+    assert(stats.state_enqueued == 10);
+    assert(stats.state_coalesced == 2);
+    assert(stats.state_dispatched == 10);
     assert(stats.invalid_publications == 2);
 
     struct view_data_sensor_history_data history = {0};
@@ -271,7 +297,7 @@ int main(void)
     view_event_stats_get(&stats);
     assert(stats.command_dispatched == 1);
     assert(stats.state_dropped == 2);
-    assert(stats.state_dispatched == 4);
+    assert(stats.state_dispatched == 12);
     assert(stats.synchronization_busy == 4);
 
     return 0;

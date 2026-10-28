@@ -22,8 +22,16 @@ set(DIRECTORIES_TO_INCLUDE "util" "ha" "wifi" "sensor" "display" "settings" "rp2
 # Call the custom function to collect the source files
 collect_sources(COLLECTED_SOURCES ${DIRECTORIES_TO_INCLUDE})
 
+# New deep modules should remain visible in the build manifest rather than
+# relying only on recursive discovery.
+list(FILTER COLLECTED_SOURCES EXCLUDE REGEX "(^|/)ha/ha_switch_sync\\.c$")
+set(EXPLICIT_DOMAIN_SOURCES
+  "ha/ha_switch_sync.c"
+)
+
 # Register the component
 idf_component_register(
-  SRCS "main.c" "lv_port.c" "indicator_model.c" "indicator_view.c" ${COLLECTED_SOURCES}
+  SRCS "main.c" "lv_port.c" "indicator_model.c" "indicator_view.c"
+       ${EXPLICIT_DOMAIN_SOURCES} ${COLLECTED_SOURCES}
   INCLUDE_DIRS "." ${DIRECTORIES_TO_INCLUDE}
 )

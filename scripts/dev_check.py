@@ -39,6 +39,7 @@ def main() -> int:
     run("UI geometry", ["python3", "scripts/test_ui_geometry.py"])
     run("Click deploy package", ["python3", "scripts/test_click_deploy_package.py"])
     run("Development CLI", ["python3", "scripts/test_dev_cli.py"])
+    run("HA switch synchronization", ["python3", "scripts/test_ha_switch_sync.py"])
     run("HA switch protocol", ["python3", "scripts/test_ha_switch_protocol.py"])
     run("RP2040 protocol constants", ["python3", "scripts/verify_rp2040_protocol.py"])
 
