@@ -30,6 +30,8 @@ static view_event_adapter_result_t state_result = VIEW_EVENT_ADAPTER_OK;
 static unsigned command_calls;
 static unsigned pending_count;
 static size_t pending_slots[32];
+static unsigned deferred_count;
+static size_t deferred_slots[32];
 static bool sync_busy;
 
 bool view_event_adapter_init(void)
@@ -37,6 +39,7 @@ bool view_event_adapter_init(void)
     command_calls = 0;
     command_result_count = 0;
     pending_count = 0;
+    deferred_count = 0;
     sync_busy = false;
     return true;
 }
@@ -63,6 +66,12 @@ view_event_adapter_result_t view_event_adapter_post_state(size_t slot)
     return state_result;
 }
 
+void view_event_adapter_defer_state(size_t slot)
+{
+    assert(deferred_count < 32);
+    deferred_slots[deferred_count++] = slot;
+}
+
 bool view_event_adapter_lock(uint32_t timeout_ms)
 {
     (void)timeout_ms;
@@ -70,16 +79,42 @@ bool view_event_adapter_lock(uint32_t timeout_ms)
 }
 void view_event_adapter_unlock(void) {}
 
+static size_t pop_pending(void)
+{
+    assert(pending_count > 0);
+    size_t slot = pending_slots[0];
+    for (unsigned i = 1; i < pending_count; i++) {
+        pending_slots[i - 1] = pending_slots[i];
+    }
+    pending_count--;
+    return slot;
+}
+
+static size_t pop_deferred(void)
+{
+    assert(deferred_count > 0);
+    size_t slot = deferred_slots[0];
+    for (unsigned i = 1; i < deferred_count; i++) {
+        deferred_slots[i - 1] = deferred_slots[i];
+    }
+    deferred_count--;
+    return slot;
+}
+
 static void drain_all(void)
 {
     while (pending_count > 0) {
-        size_t slot = pending_slots[0];
-        for (unsigned i = 1; i < pending_count; i++) {
-            pending_slots[i - 1] = pending_slots[i];
-        }
-        pending_count--;
-        view_event_internal_dispatch_state(slot);
+        assert(view_event_internal_dispatch_state(pop_pending()));
     }
+}
+
+static unsigned command_dispatches;
+static void command_handler(void *context, enum view_event_id id, const void *payload)
+{
+    (void)context;
+    (void)payload;
+    assert(id == VIEW_EVENT_WIFI_LIST_REQ);
+    command_dispatches++;
 }
 
 static unsigned sensor_dispatches;
@@ -111,6 +146,12 @@ int main(void)
 {
     assert(view_event_init());
     assert(view_event_subscribe(VIEW_EVENT_SENSOR_DATA, sensor_handler, NULL));
+    assert(view_event_subscribe(VIEW_EVENT_WIFI_LIST_REQ, command_handler, NULL));
+
+    sync_busy = true;
+    view_event_internal_dispatch_command(VIEW_EVENT_WIFI_LIST_REQ, NULL);
+    sync_busy = false;
+    assert(command_dispatches == 1);
 
     command_results[0] = VIEW_EVENT_ADAPTER_FULL;
     command_results[1] = VIEW_EVENT_ADAPTER_FULL;
@@ -205,6 +246,33 @@ int main(void)
     view_event_stats_get(&stats);
     assert(stats.state_dropped == 2);
     assert(stats.synchronization_busy == 1);
+
+    state_result = VIEW_EVENT_ADAPTER_OK;
+    co2.value = 1000.0f;
+    assert(view_event_publish_state(
+               VIEW_EVENT_SENSOR_DATA, &co2, sizeof(co2)) ==
+           VIEW_EVENT_DELIVERY_ENQUEUED);
+    size_t retry_slot = pop_pending();
+    sync_busy = true;
+    for (unsigned attempt = 0; attempt < 3; attempt++) {
+        assert(!view_event_internal_dispatch_state(retry_slot));
+        assert(deferred_count == 1);
+        retry_slot = pop_deferred();
+    }
+    sync_busy = false;
+    co2.value = 1100.0f;
+    assert(view_event_publish_state(
+               VIEW_EVENT_SENSOR_DATA, &co2, sizeof(co2)) ==
+           VIEW_EVENT_DELIVERY_COALESCED);
+    assert(pending_count == 0);
+    assert(view_event_internal_dispatch_state(retry_slot));
+    assert(last_sensor.value == 1100.0f);
+
+    view_event_stats_get(&stats);
+    assert(stats.command_dispatched == 1);
+    assert(stats.state_dropped == 2);
+    assert(stats.state_dispatched == 4);
+    assert(stats.synchronization_busy == 4);
 
     return 0;
 }

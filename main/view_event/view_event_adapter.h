@@ -30,6 +30,7 @@ union view_event_payload_extent {
 };
 
 #define VIEW_EVENT_MAX_PAYLOAD_SIZE sizeof(union view_event_payload_extent)
+#define VIEW_EVENT_MAX_STATE_SLOTS 24
 
 union view_event_payload_storage {
     max_align_t alignment;
@@ -46,6 +47,12 @@ bool view_event_adapter_init(void);
 view_event_adapter_result_t view_event_adapter_post_command(
     enum view_event_id id, const void *payload, size_t payload_size);
 view_event_adapter_result_t view_event_adapter_post_state(size_t slot);
+/*
+ * Preserve a consumed state token outside the transport queue until internal
+ * synchronization becomes available. This internal adapter operation must
+ * not silently reject a valid slot.
+ */
+void view_event_adapter_defer_state(size_t slot);
 bool view_event_adapter_lock(uint32_t timeout_ms);
 void view_event_adapter_unlock(void);
 

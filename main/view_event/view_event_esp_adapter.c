@@ -3,7 +3,9 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -12,8 +14,8 @@
 #define VIEW_EVENT_QUEUE_SIZE 10
 #define VIEW_EVENT_TASK_STACK_SIZE 10240
 #define VIEW_EVENT_COMMAND_ATTEMPT_WAIT_MS 5
-#define VIEW_EVENT_STATE_DISPATCH_ATTEMPTS 3
 #define VIEW_EVENT_STATE_DISPATCH_RETRY_MS 1
+#define VIEW_EVENT_STATE_RETRY_STACK_SIZE 3072
 
 ESP_EVENT_DEFINE_BASE(VIEW_EVENT_TRANSPORT_BASE);
 
@@ -30,6 +32,19 @@ struct view_event_command_envelope {
 
 static esp_event_loop_handle_t s_event_loop;
 static SemaphoreHandle_t s_lock;
+static QueueHandle_t s_state_retry_queue;
+
+static void view_event_state_retry_task(void *context)
+{
+    (void)context;
+    size_t slot;
+    while (true) {
+        if (xQueueReceive(s_state_retry_queue, &slot, portMAX_DELAY) == pdTRUE &&
+            !view_event_internal_dispatch_state(slot)) {
+            vTaskDelay(pdMS_TO_TICKS(VIEW_EVENT_STATE_DISPATCH_RETRY_MS));
+        }
+    }
+}
 
 static void view_event_transport_handler(
     void *context, esp_event_base_t base, int32_t id, void *event_data)
@@ -44,18 +59,7 @@ static void view_event_transport_handler(
         view_event_internal_dispatch_command(command->id, payload);
     } else if (id == VIEW_EVENT_TRANSPORT_STATE) {
         const size_t *slot = event_data;
-        for (unsigned attempt = 0;
-             attempt < VIEW_EVENT_STATE_DISPATCH_ATTEMPTS;
-             attempt++) {
-            if (view_event_internal_dispatch_state(*slot)) {
-                return;
-            }
-            vTaskDelay(pdMS_TO_TICKS(VIEW_EVENT_STATE_DISPATCH_RETRY_MS));
-        }
-        ESP_LOGE(
-            "view-event",
-            "state slot %u remained synchronization-busy",
-            (unsigned)*slot);
+        view_event_internal_dispatch_state(*slot);
     }
 }
 
@@ -64,6 +68,14 @@ bool view_event_adapter_init(void)
     s_lock = xSemaphoreCreateMutex();
     if (s_lock == NULL) {
         ESP_LOGE("view-event", "failed to create delivery lock");
+        return false;
+    }
+    s_state_retry_queue = xQueueCreate(
+        VIEW_EVENT_MAX_STATE_SLOTS, sizeof(size_t));
+    if (s_state_retry_queue == NULL) {
+        ESP_LOGE("view-event", "failed to create state retry queue");
+        vSemaphoreDelete(s_lock);
+        s_lock = NULL;
         return false;
     }
 
@@ -78,6 +90,8 @@ bool view_event_adapter_init(void)
     esp_err_t err = esp_event_loop_create(&args, &s_event_loop);
     if (err != ESP_OK) {
         ESP_LOGE("view-event", "failed to create delivery loop: %s", esp_err_to_name(err));
+        vQueueDelete(s_state_retry_queue);
+        s_state_retry_queue = NULL;
         vSemaphoreDelete(s_lock);
         s_lock = NULL;
         return false;
@@ -94,6 +108,24 @@ bool view_event_adapter_init(void)
         ESP_LOGE("view-event", "failed to register delivery adapter: %s", esp_err_to_name(err));
         esp_event_loop_delete(s_event_loop);
         s_event_loop = NULL;
+        vQueueDelete(s_state_retry_queue);
+        s_state_retry_queue = NULL;
+        vSemaphoreDelete(s_lock);
+        s_lock = NULL;
+        return false;
+    }
+    if (xTaskCreate(
+            view_event_state_retry_task,
+            "view_state_retry",
+            VIEW_EVENT_STATE_RETRY_STACK_SIZE,
+            NULL,
+            uxTaskPriorityGet(NULL),
+            NULL) != pdPASS) {
+        ESP_LOGE("view-event", "failed to create state retry task");
+        esp_event_loop_delete(s_event_loop);
+        s_event_loop = NULL;
+        vQueueDelete(s_state_retry_queue);
+        s_state_retry_queue = NULL;
         vSemaphoreDelete(s_lock);
         s_lock = NULL;
         return false;
@@ -147,6 +179,20 @@ view_event_adapter_result_t view_event_adapter_post_state(size_t slot)
         return VIEW_EVENT_ADAPTER_FULL;
     }
     return VIEW_EVENT_ADAPTER_ERROR;
+}
+
+void view_event_adapter_defer_state(size_t slot)
+{
+    BaseType_t queued = s_state_retry_queue != NULL
+        ? xQueueSend(s_state_retry_queue, &slot, 0)
+        : pdFALSE;
+    if (queued != pdTRUE) {
+        ESP_LOGE(
+            "view-event",
+            "state retry invariant failed for slot %u",
+            (unsigned)slot);
+        ESP_ERROR_CHECK(ESP_FAIL);
+    }
 }
 
 bool view_event_adapter_lock(uint32_t timeout_ms)

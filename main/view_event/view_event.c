@@ -14,7 +14,6 @@
 #endif
 
 #define VIEW_EVENT_MAX_SUBSCRIBERS 32
-#define VIEW_EVENT_MAX_STATE_SLOTS 24
 #define VIEW_EVENT_COMMAND_ATTEMPTS 3
 #define VIEW_EVENT_STATE_LOCK_WAIT_MS 0
 #define VIEW_EVENT_INTERNAL_LOCK_WAIT_MS 5
@@ -164,26 +163,19 @@ static void view_event_count_invalid(enum view_event_id id)
     VIEW_EVENT_LOG_ERROR("invalid publication for event %d", (int)id);
 }
 
-static bool view_event_copy_subscriptions(
+static void view_event_copy_subscriptions(
     enum view_event_id id,
     struct view_event_subscription *matches,
     size_t *match_count)
 {
-    if (!view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
-        STATS_INCREMENT(synchronization_busy);
-        VIEW_EVENT_LOG_ERROR(
-            "subscription synchronization busy for event %d", (int)id);
-        return false;
-    }
-
     *match_count = 0;
-    for (size_t i = 0; i < s_subscription_count; i++) {
+    size_t subscription_count =
+        __atomic_load_n(&s_subscription_count, __ATOMIC_ACQUIRE);
+    for (size_t i = 0; i < subscription_count; i++) {
         if (s_subscriptions[i].id == id) {
             matches[(*match_count)++] = s_subscriptions[i];
         }
     }
-    view_event_adapter_unlock();
-    return true;
 }
 
 static void view_event_dispatch(
@@ -192,9 +184,7 @@ static void view_event_dispatch(
     struct view_event_subscription matches[VIEW_EVENT_MAX_SUBSCRIBERS];
     size_t match_count = 0;
 
-    if (!view_event_copy_subscriptions(id, matches, &match_count)) {
-        return;
-    }
+    view_event_copy_subscriptions(id, matches, &match_count);
     for (size_t i = 0; i < match_count; i++) {
         matches[i].handler(matches[i].context, id, payload);
     }
@@ -210,7 +200,7 @@ bool view_event_init(void)
     memset(s_subscriptions, 0, sizeof(s_subscriptions));
     memset(s_state_slots, 0, sizeof(s_state_slots));
     memset(&s_stats, 0, sizeof(s_stats));
-    s_subscription_count = 0;
+    __atomic_store_n(&s_subscription_count, 0, __ATOMIC_RELEASE);
     view_event_adapter_unlock();
     return true;
 }
@@ -224,12 +214,16 @@ bool view_event_subscribe(
     }
 
     bool subscribed = false;
-    if (s_subscription_count < VIEW_EVENT_MAX_SUBSCRIBERS) {
-        s_subscriptions[s_subscription_count++] = (struct view_event_subscription){
+    size_t subscription_count =
+        __atomic_load_n(&s_subscription_count, __ATOMIC_RELAXED);
+    if (subscription_count < VIEW_EVENT_MAX_SUBSCRIBERS) {
+        s_subscriptions[subscription_count] = (struct view_event_subscription){
             .id = id,
             .handler = handler,
             .context = context,
         };
+        __atomic_store_n(
+            &s_subscription_count, subscription_count + 1, __ATOMIC_RELEASE);
         subscribed = true;
     }
     view_event_adapter_unlock();
@@ -366,15 +360,18 @@ void view_event_stats_get(struct view_event_stats *stats)
 void view_event_internal_dispatch_command(
     enum view_event_id id, const void *payload)
 {
-    STATS_INCREMENT(command_dispatched);
     view_event_dispatch(id, payload);
+    STATS_INCREMENT(command_dispatched);
 }
 
 bool view_event_internal_dispatch_state(size_t slot)
 {
-    if (slot >= VIEW_EVENT_MAX_STATE_SLOTS ||
-        !view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
+    if (slot >= VIEW_EVENT_MAX_STATE_SLOTS) {
+        return false;
+    }
+    if (!view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
         STATS_INCREMENT(synchronization_busy);
+        view_event_adapter_defer_state(slot);
         return false;
     }
 
@@ -388,10 +385,10 @@ bool view_event_internal_dispatch_state(size_t slot)
     view_event_adapter_unlock();
 
     if (available) {
-        STATS_INCREMENT(state_dispatched);
         const void *payload =
             delivered.payload_size > 0 ? delivered.payload.bytes : NULL;
         view_event_dispatch(delivered.id, payload);
+        STATS_INCREMENT(state_dispatched);
     }
     return true;
 }
