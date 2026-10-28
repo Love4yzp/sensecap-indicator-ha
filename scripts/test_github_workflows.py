@@ -31,6 +31,8 @@ class GithubWorkflowTests(unittest.TestCase):
         self.assertNotIn("pull_request_target", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertIn("cancel-in-progress:", workflow)
+        self.assertNotIn("ubuntu-latest", workflow)
+        self.assertEqual(4, workflow.count("runs-on: ubuntu-24.04"))
         self.assertIn("esp_idf_version: v5.5.6", workflow)
         self.assertIn("target: esp32s3", workflow)
         self.assertIn("platformio==6.2.0", workflow)

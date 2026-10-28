@@ -21,7 +21,7 @@ permissions:
 jobs:
   host:
     name: Host checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Check out repository
@@ -33,7 +33,7 @@ jobs:
   esp32:
     name: ESP32-S3 firmware
     needs: host
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - name: Check out repository
@@ -79,7 +79,7 @@ jobs:
   rp2040:
     name: RP2040 firmware
     needs: host
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check out repository
@@ -128,7 +128,7 @@ jobs:
     needs:
       - esp32
       - rp2040
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       actions: read
