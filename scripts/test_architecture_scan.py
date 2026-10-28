@@ -39,10 +39,16 @@ lv_obj_create(real);
 
 
 class ViewEventSeamTests(unittest.TestCase):
-    def scan(self, relative_path: str, source: str) -> list[str]:
+    def scan_findings(self, relative_path: str, source: str):
         findings = []
         scan_view_event_seam(ROOT / relative_path, source, findings)
-        return [finding.rule for finding in findings]
+        return findings
+
+    def scan(self, relative_path: str, source: str) -> list[str]:
+        return [
+            finding.rule
+            for finding in self.scan_findings(relative_path, source)
+        ]
 
     def test_rejects_legacy_direct_transport(self) -> None:
         rules = self.scan(
@@ -136,6 +142,33 @@ esp_event_post_to(loop, VIEW_EVENT_TRANSPORT_BASE, 0, NULL, 0, 0);
                     "wifi-scan-private-adapter",
                     self.scan(path, '#include "wifi_scan_worker_adapter.h"\n'),
                 )
+
+    def test_wifi_scan_private_include_ignores_non_code_and_keeps_line_numbers(
+        self,
+    ) -> None:
+        non_code = """\
+// #include "wifi_scan_worker_adapter.h"
+/* #include "../wifi/wifi_scan_worker_adapter.h" */
+const char *example = "#include \\"wifi/wifi_scan_worker_adapter.h\\"";
+"""
+        self.assertNotIn(
+            "wifi-scan-private-adapter",
+            self.scan("main/ha/example.c", non_code),
+        )
+
+        source = """\
+// #include "wifi_scan_worker_adapter.h"
+const char *example = "#include \\"wifi_scan_worker_adapter.h\\"";
+
+#include "../wifi/wifi_scan_worker_adapter.h"
+"""
+        findings = [
+            finding
+            for finding in self.scan_findings("main/ha/example.c", source)
+            if finding.rule == "wifi-scan-private-adapter"
+        ]
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].line, 4)
 
 
 if __name__ == "__main__":

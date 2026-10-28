@@ -134,6 +134,7 @@ VIEW_EVENT_PRIVATE_INCLUDE_RE = re.compile(
 WIFI_SCAN_PRIVATE_INCLUDE_RE = re.compile(
     r"#\s*include\s*[<\"][^>\"]*wifi_scan_worker_adapter\.h[>\"]"
 )
+C_INCLUDE_DIRECTIVE_RE = re.compile(r"^\s*#\s*include\b")
 VIEW_EVENT_LEGACY_TRANSPORT_RE = re.compile(
     r"\b(view_event_handle|VIEW_EVENT_BASE)\b"
 )
@@ -456,14 +457,20 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
             )
 
     if rel not in wifi_scan_adapter_paths:
-        for match in WIFI_SCAN_PRIVATE_INCLUDE_RE.finditer(text):
-            add_finding(
-                findings,
-                path,
-                line_number(text, match.start()),
-                "wifi-scan-private-adapter",
-                "runtime code must use wifi_scan_worker.h, not its private adapter seam",
-            )
+        for line, (source_line, masked_line) in enumerate(
+            zip(text.splitlines(), code_text.splitlines()), start=1
+        ):
+            if (
+                C_INCLUDE_DIRECTIVE_RE.match(masked_line)
+                and WIFI_SCAN_PRIVATE_INCLUDE_RE.search(source_line)
+            ):
+                add_finding(
+                    findings,
+                    path,
+                    line,
+                    "wifi-scan-private-adapter",
+                    "runtime code must use wifi_scan_worker.h, not its private adapter seam",
+                )
 
     for match in VIEW_EVENT_LEGACY_TRANSPORT_RE.finditer(code_text):
         add_finding(
