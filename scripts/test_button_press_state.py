@@ -19,22 +19,25 @@ HARNESS = r"""
 
 #include "button_press_state.h"
 
-static button_press_action_t hold_times(unsigned count, bool sleeping)
+static void hold_and_count(
+    unsigned count,
+    bool sleeping,
+    unsigned action_counts[BUTTON_PRESS_ACTION_SHUTDOWN + 1])
 {
-    button_press_action_t action = BUTTON_PRESS_ACTION_NONE;
     for (unsigned i = 0; i < count; i++) {
-        button_press_action_t next = button_press_hold(100, sleeping);
-        if (next != BUTTON_PRESS_ACTION_NONE) {
-            action = next;
-        }
+        button_press_action_t action = button_press_hold(100, sleeping);
+        assert(action <= BUTTON_PRESS_ACTION_SHUTDOWN);
+        action_counts[action]++;
     }
-    return action;
 }
 
 int main(void)
 {
+    unsigned action_counts[BUTTON_PRESS_ACTION_SHUTDOWN + 1] = {0};
+
     button_press_begin();
-    assert(hold_times(16, false) == BUTTON_PRESS_ACTION_PREPARE_SLEEP);
+    hold_and_count(16, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_PREPARE_SLEEP] == 1);
     assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
     /* Rejection leaves shutdown pending and safe to retry. */
     assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
@@ -42,17 +45,28 @@ int main(void)
     assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
 
     button_press_begin();
-    assert(hold_times(16, false) == BUTTON_PRESS_ACTION_PREPARE_SLEEP);
+    hold_and_count(16, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_PREPARE_SLEEP] == 2);
     assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
     button_press_shutdown_accepted();
 
     button_press_begin();
-    assert(hold_times(86, false) == BUTTON_PRESS_ACTION_FACTORY_RESET);
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 1);
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 1);
     assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
     assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
 
     button_press_begin();
-    assert(hold_times(16, true) == BUTTON_PRESS_ACTION_RESTART);
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 2);
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 2);
+
+    button_press_begin();
+    hold_and_count(16, true, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_RESTART] == 1);
     assert(button_press_hold(100, true) == BUTTON_PRESS_ACTION_NONE);
 
     return 0;
@@ -61,7 +75,9 @@ int main(void)
 
 
 class ButtonPressStateTests(unittest.TestCase):
-    def test_shutdown_is_emitted_once_per_press(self) -> None:
+    def test_shutdown_retries_until_accepted_and_factory_reset_once_per_press(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             binary = Path(tmp) / "button_press_state_test"
             harness = Path(tmp) / "button_press_state_test.c"
@@ -104,6 +120,8 @@ class ButtonPressStateTests(unittest.TestCase):
         display_on = factory_case.index("indicator_display_on()")
         timer_create = factory_case.index("esp_timer_create(")
         timer_start = factory_case.index("esp_timer_start_once(")
+        self.assertEqual(factory_case.count("esp_timer_create("), 1)
+        self.assertEqual(factory_case.count("esp_timer_start_once("), 1)
         self.assertLess(rejected_end, display_state)
         self.assertLess(display_state, display_on)
         self.assertLess(display_on, timer_create)
