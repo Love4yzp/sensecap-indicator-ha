@@ -56,13 +56,38 @@ esp_event_post_to(
 
         self.assertIn("view-event-legacy-transport", rules)
 
-    def test_rejects_private_adapter_include_outside_module(self) -> None:
-        rules = self.scan(
-            "main/sensor/example.c",
+    def test_rejects_all_private_adapter_include_spellings_outside_module(self) -> None:
+        for include in (
             '#include "view_event_adapter.h"\n',
+            '#include "view_event/view_event_adapter.h"\n',
+            '#include "../view_event/view_event_adapter.h"\n',
+            "#include <view_event/view_event_adapter.h>\n",
+        ):
+            with self.subTest(include=include):
+                rules = self.scan("main/sensor/example.c", include)
+                self.assertEqual(rules, ["view-event-private-adapter"])
+
+    def test_rejects_ignored_command_delivery_result(self) -> None:
+        rules = self.scan(
+            "main/wifi/example.c",
+            "view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
         )
 
-        self.assertEqual(rules, ["view-event-private-adapter"])
+        self.assertIn("view-event-command-result", rules)
+
+    def test_allows_explicit_command_delivery_handling(self) -> None:
+        for source in (
+            "return view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+            "view_event_delivery_t delivery = view_event_post_command("
+            "VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",
+            "if (view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0) "
+            "!= VIEW_EVENT_DELIVERY_ENQUEUED) {}\n",
+        ):
+            with self.subTest(source=source):
+                self.assertNotIn(
+                    "view-event-command-result",
+                    self.scan("main/wifi/example.c", source),
+                )
 
     def test_allows_esp_transport_only_in_production_adapter(self) -> None:
         source = """\

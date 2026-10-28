@@ -21,12 +21,14 @@ typedef enum {
 
 struct view_event_stats {
     uint32_t command_enqueued;
+    uint32_t command_retries;
     uint32_t command_rejected;
     uint32_t command_dispatched;
     uint32_t state_enqueued;
     uint32_t state_coalesced;
     uint32_t state_dropped;
     uint32_t state_dispatched;
+    uint32_t synchronization_busy;
     uint32_t invalid_publications;
 };
 

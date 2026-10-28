@@ -124,8 +124,15 @@ static void _show_wifi_modal(void) {
     lv_obj_move_foreground(s_wifi_modal);
     wifi_list_screen_show_spinner(s_list_screen);
 
-    s_wifi_scan_pending = true;
-    view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
+    view_event_delivery_t delivery =
+        view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
+    s_wifi_scan_pending = delivery == VIEW_EVENT_DELIVERY_ENQUEUED;
+    if(!s_wifi_scan_pending) {
+        ESP_LOGE(TAG, "wifi scan request rejected: delivery=%d", (int)delivery);
+        if(s_wifi_spinner) {
+            lv_obj_add_flag(s_wifi_spinner, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 }
 
 static void _on_wifi_icon_clicked(lv_event_t *e) {
@@ -293,7 +300,14 @@ static void _view_event_handler(
             if(!modal_visible) break;
 
             /* Refresh list then show result toast. */
-            view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
+            view_event_delivery_t delivery =
+                view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);
+            if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+                ESP_LOGE(
+                    TAG,
+                    "wifi result refresh rejected: delivery=%d",
+                    (int)delivery);
+            }
 
             lv_port_sem_take();
             _show_connect_result(p_data);

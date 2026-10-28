@@ -11,7 +11,9 @@
 
 #define VIEW_EVENT_QUEUE_SIZE 10
 #define VIEW_EVENT_TASK_STACK_SIZE 10240
-#define VIEW_EVENT_COMMAND_WAIT_MS 20
+#define VIEW_EVENT_COMMAND_ATTEMPT_WAIT_MS 5
+#define VIEW_EVENT_STATE_DISPATCH_ATTEMPTS 3
+#define VIEW_EVENT_STATE_DISPATCH_RETRY_MS 1
 
 ESP_EVENT_DEFINE_BASE(VIEW_EVENT_TRANSPORT_BASE);
 
@@ -42,7 +44,18 @@ static void view_event_transport_handler(
         view_event_internal_dispatch_command(command->id, payload);
     } else if (id == VIEW_EVENT_TRANSPORT_STATE) {
         const size_t *slot = event_data;
-        view_event_internal_dispatch_state(*slot);
+        for (unsigned attempt = 0;
+             attempt < VIEW_EVENT_STATE_DISPATCH_ATTEMPTS;
+             attempt++) {
+            if (view_event_internal_dispatch_state(*slot)) {
+                return;
+            }
+            vTaskDelay(pdMS_TO_TICKS(VIEW_EVENT_STATE_DISPATCH_RETRY_MS));
+        }
+        ESP_LOGE(
+            "view-event",
+            "state slot %u remained synchronization-busy",
+            (unsigned)*slot);
     }
 }
 
@@ -106,7 +119,7 @@ view_event_adapter_result_t view_event_adapter_post_command(
         VIEW_EVENT_TRANSPORT_COMMAND,
         &command,
         envelope_size,
-        pdMS_TO_TICKS(VIEW_EVENT_COMMAND_WAIT_MS));
+        pdMS_TO_TICKS(VIEW_EVENT_COMMAND_ATTEMPT_WAIT_MS));
 
     if (err == ESP_OK) {
         return VIEW_EVENT_ADAPTER_OK;
@@ -136,9 +149,10 @@ view_event_adapter_result_t view_event_adapter_post_state(size_t slot)
     return VIEW_EVENT_ADAPTER_ERROR;
 }
 
-void view_event_adapter_lock(void)
+bool view_event_adapter_lock(uint32_t timeout_ms)
 {
-    xSemaphoreTake(s_lock, portMAX_DELAY);
+    return s_lock != NULL &&
+        xSemaphoreTake(s_lock, pdMS_TO_TICKS(timeout_ms)) == pdTRUE;
 }
 
 void view_event_adapter_unlock(void)

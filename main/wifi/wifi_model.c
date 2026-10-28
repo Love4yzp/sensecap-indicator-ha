@@ -1,4 +1,5 @@
 #include "wifi_model.h"
+#include "wifi_scan_worker.h"
 #include "view_event.h"
 #include "esp_log.h"
 
@@ -38,10 +39,6 @@ static bool _g_ping_done = true;
 static EventGroupHandle_t _wifi_event_group;
 
 static const char* TAG = "wifi-model";
-
-static int min(int a, int b) {
-	return (a < b) ? a : b;
-}
 
 static void _wifi_st_set(struct view_data_wifi_st* p_st) {
 	xSemaphoreTake(_g_data_mutex, portMAX_DELAY);
@@ -92,7 +89,12 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 			struct view_data_wifi_connet_ret_msg msg;
 			msg.ret = 0;
 			strcpy(msg.msg, "Connection successful");
-			view_event_post_command(VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg));
+			view_event_delivery_t delivery =
+				view_event_post_command(VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg));
+			if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
+			{
+				ESP_LOGE(TAG, "wifi connect result rejected: delivery=%d", (int)delivery);
+			}
 			break;
 		}
 		case WIFI_EVENT_STA_DISCONNECTED:
@@ -121,7 +123,12 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 				struct view_data_wifi_connet_ret_msg msg;
 				msg.ret = 1;
 				strcpy(msg.msg, "Connection failure");
-				view_event_post_command(VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg));
+				view_event_delivery_t delivery =
+					view_event_post_command(VIEW_EVENT_WIFI_CONNECT_RET, &msg, sizeof(msg));
+				if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
+				{
+					ESP_LOGE(TAG, "wifi failure result rejected: delivery=%d", (int)delivery);
+				}
 			}
 			break;
 		}
@@ -139,21 +146,6 @@ static void _ip_event_handler(void* arg, esp_event_base_t event_base, int32_t ev
 
 		xSemaphoreGive(_g_net_check_sem);
 	}
-}
-
-static int _wifi_scan(wifi_ap_record_t* p_ap_info, uint16_t number) {
-	uint16_t ap_count;
-	esp_wifi_scan_start(NULL, true);
-
-	ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(&ap_count));
-	ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(&number, p_ap_info));
-	ESP_LOGI(TAG, "Total APs scanned = %u, actual AP number ap_info holds = %u", ap_count, number);
-
-	for(int i = 0; (i < number) && (i < ap_count); i++)
-	{
-		ESP_LOGI(TAG, "SSID: %s, RSSI:%d, Channel: %d", p_ap_info[i].ssid, p_ap_info[i].rssi, p_ap_info[i].primary);
-	}
-	return ap_count;
 }
 
 static int _wifi_connect(const char* p_ssid, const char* p_password, int retry_num) {
@@ -345,55 +337,12 @@ static void _view_event_handler(
 		case VIEW_EVENT_WIFI_LIST_REQ:
 		{
 			ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_LIST_REQ");
-
-			uint16_t number = WIFI_SCAN_LIST_SIZE;
-			uint16_t ap_count = 0;
-			wifi_ap_record_t ap_info[WIFI_SCAN_LIST_SIZE];
-			ap_count = _wifi_scan(ap_info, number);
-
-			struct view_data_wifi_list list;
 			struct view_data_wifi_st st;
-
-			memset(&list, 0, sizeof(struct view_data_wifi_list));
-
 			_wifi_st_get(&st);
-
-			list.is_connect = st.is_connected;
-			if(st.is_connected)
+			if(!wifi_scan_worker_request(&st))
 			{
-				strlcpy((char*)list.connect.ssid, (char*)st.ssid, sizeof(list.connect.ssid));
-				list.connect.auth_mode = false;
-				list.connect.rssi = st.rssi;
+				ESP_LOGE(TAG, "wifi scan request rejected by worker");
 			}
-
-			ap_count = min(number, ap_count);
-
-			bool is_exist = false;
-			int list_cnt = 0;
-			for(int i = 0; i < ap_count; i++)
-			{
-				is_exist = false;
-				for(int j = 0; j < list_cnt; j++)
-				{
-					if(strcmp(list.aps[j].ssid, ap_info[i].ssid) == 0)
-					{
-						ESP_LOGI(TAG, "list exit ap:%s", ap_info[i].ssid);
-						is_exist = true;
-						break;
-					}
-				}
-				if(!is_exist)
-				{
-					strcpy(list.aps[list_cnt].ssid, ap_info[i].ssid);
-					list.aps[list_cnt].rssi = ap_info[i].rssi;
-					list.aps[list_cnt].auth_mode = (ap_info[i].authmode != WIFI_AUTH_OPEN);
-					list_cnt++;
-				}
-			}
-			list.cnt = list_cnt;
-			view_event_post_command(
-				VIEW_EVENT_WIFI_LIST, &list, sizeof(struct view_data_wifi_list));
-
 			break;
 		}
 		case VIEW_EVENT_WIFI_CONNECT:
@@ -444,6 +393,7 @@ int indicator_wifi_model_init(void) {
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+	ESP_ERROR_CHECK(wifi_scan_worker_init() ? ESP_OK : ESP_FAIL);
 
 	esp_event_handler_instance_t instance_any_id;
 	esp_event_handler_instance_t instance_got_ip;
@@ -479,8 +429,12 @@ int indicator_wifi_model_init(void) {
 		uint8_t screen = SCREEN_WIFI_CONFIG;
 		ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 		ESP_ERROR_CHECK(esp_wifi_start());
-		view_event_post_command(
+		view_event_delivery_t delivery = view_event_post_command(
 			VIEW_EVENT_SCREEN_START, &screen, sizeof(screen));
+		if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
+		{
+			ESP_LOGE(TAG, "wifi setup screen command rejected: delivery=%d", (int)delivery);
+		}
 	}
 
 	return 0;

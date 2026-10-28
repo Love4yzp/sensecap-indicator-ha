@@ -15,6 +15,83 @@
 
 #define VIEW_EVENT_MAX_SUBSCRIBERS 32
 #define VIEW_EVENT_MAX_STATE_SLOTS 24
+#define VIEW_EVENT_COMMAND_ATTEMPTS 3
+#define VIEW_EVENT_STATE_LOCK_WAIT_MS 0
+#define VIEW_EVENT_INTERNAL_LOCK_WAIT_MS 5
+
+enum view_event_category {
+    VIEW_EVENT_CATEGORY_INVALID = 0,
+    VIEW_EVENT_CATEGORY_COMMAND,
+    VIEW_EVENT_CATEGORY_STATE,
+};
+
+enum view_event_key_kind {
+    VIEW_EVENT_KEY_SINGLETON = 0,
+    VIEW_EVENT_KEY_SENSOR_TYPE,
+    VIEW_EVENT_KEY_HA_SENSOR_INDEX,
+};
+
+struct view_event_descriptor {
+    enum view_event_category category;
+    size_t payload_size;
+    enum view_event_key_kind key_kind;
+};
+
+#define COMMAND(payload_type) \
+    { VIEW_EVENT_CATEGORY_COMMAND, sizeof(payload_type), VIEW_EVENT_KEY_SINGLETON }
+#define COMMAND_EMPTY \
+    { VIEW_EVENT_CATEGORY_COMMAND, 0, VIEW_EVENT_KEY_SINGLETON }
+#define STATE(payload_type) \
+    { VIEW_EVENT_CATEGORY_STATE, sizeof(payload_type), VIEW_EVENT_KEY_SINGLETON }
+#define STATE_KEYED(payload_type, key) \
+    { VIEW_EVENT_CATEGORY_STATE, sizeof(payload_type), key }
+#define STATE_EMPTY \
+    { VIEW_EVENT_CATEGORY_STATE, 0, VIEW_EVENT_KEY_SINGLETON }
+
+static const struct view_event_descriptor s_descriptors[VIEW_EVENT_ALL] = {
+    [VIEW_EVENT_SCREEN_START] = COMMAND(uint8_t),
+    [VIEW_EVENT_TIME] = STATE(bool),
+    [VIEW_EVENT_WIFI_ST] = STATE(struct view_data_wifi_st),
+    [VIEW_EVENT_CITY] = {
+        VIEW_EVENT_CATEGORY_STATE, 32, VIEW_EVENT_KEY_SINGLETON},
+    [VIEW_EVENT_SENSOR_DATA] = STATE_KEYED(
+        struct view_data_sensor_data, VIEW_EVENT_KEY_SENSOR_TYPE),
+    [VIEW_EVENT_SENSOR_TEMP_HISTORY] = STATE_EMPTY,
+    [VIEW_EVENT_SENSOR_HUMIDITY_HISTORY] = STATE_EMPTY,
+    [VIEW_EVENT_SENSOR_TVOC_HISTORY] = STATE_EMPTY,
+    [VIEW_EVENT_SENSOR_CO2_HISTORY] = STATE_EMPTY,
+    [VIEW_EVENT_SENSOR_DATA_HISTORY] =
+        STATE(struct view_data_sensor_history_data),
+    [VIEW_EVENT_WIFI_LIST] = COMMAND(struct view_data_wifi_list),
+    [VIEW_EVENT_WIFI_LIST_START] = COMMAND_EMPTY,
+    [VIEW_EVENT_WIFI_LIST_REQ] = COMMAND_EMPTY,
+    [VIEW_EVENT_WIFI_CONNECT] = COMMAND(struct view_data_wifi_config),
+    [VIEW_EVENT_WIFI_CONNECT_RET] =
+        COMMAND(struct view_data_wifi_connet_ret_msg),
+    [VIEW_EVENT_WIFI_CFG_DELETE] = COMMAND_EMPTY,
+    [VIEW_EVENT_TIME_CFG_UPDATE] = COMMAND(struct view_data_time_cfg),
+    [VIEW_EVENT_TIME_CFG_APPLY] = COMMAND(struct view_data_time_cfg),
+    [VIEW_EVENT_DISPLAY_CFG] = STATE(struct view_data_display),
+    [VIEW_EVENT_BRIGHTNESS_UPDATE] = STATE(int32_t),
+    [VIEW_EVENT_DISPLAY_CFG_APPLY] = COMMAND(struct view_data_display),
+    [VIEW_EVENT_SHUTDOWN] = COMMAND_EMPTY,
+    [VIEW_EVENT_FACTORY_RESET] = COMMAND_EMPTY,
+    [VIEW_EVENT_SCREEN_CTRL] = STATE(bool),
+    [VIEW_EVENT_MQTT_ADDR_CHANGED] = COMMAND_EMPTY,
+    [VIEW_EVENT_HA_ADDR_DISPLAY] = STATE_EMPTY,
+    [VIEW_EVENT_HA_SENSOR] = STATE_KEYED(
+        struct view_data_ha_sensor_data, VIEW_EVENT_KEY_HA_SENSOR_INDEX),
+    [VIEW_EVENT_HA_SWITCH_ST] =
+        COMMAND(struct view_data_ha_switch_data),
+    [VIEW_EVENT_HA_SWITCH_SET] =
+        COMMAND(struct view_data_ha_switch_data),
+};
+
+#undef COMMAND
+#undef COMMAND_EMPTY
+#undef STATE
+#undef STATE_KEYED
+#undef STATE_EMPTY
 
 struct view_event_subscription {
     enum view_event_id id;
@@ -35,128 +112,46 @@ static size_t s_subscription_count;
 static struct view_event_state_slot s_state_slots[VIEW_EVENT_MAX_STATE_SLOTS];
 static struct view_event_stats s_stats;
 
-static bool view_event_id_is_valid(enum view_event_id id)
-{
-    return id >= VIEW_EVENT_SCREEN_START && id < VIEW_EVENT_ALL;
-}
+#define STATS_INCREMENT(field) \
+    ((void)__atomic_add_fetch(&s_stats.field, 1U, __ATOMIC_RELAXED))
+#define STATS_LOAD(field) \
+    __atomic_load_n(&s_stats.field, __ATOMIC_RELAXED)
 
-static bool view_event_is_command(enum view_event_id id)
+static const struct view_event_descriptor *view_event_descriptor_for(
+    enum view_event_id id)
 {
-    switch (id) {
-        case VIEW_EVENT_SCREEN_START:
-        case VIEW_EVENT_WIFI_LIST:
-        case VIEW_EVENT_WIFI_LIST_START:
-        case VIEW_EVENT_WIFI_LIST_REQ:
-        case VIEW_EVENT_WIFI_CONNECT:
-        case VIEW_EVENT_WIFI_CONNECT_RET:
-        case VIEW_EVENT_WIFI_CFG_DELETE:
-        case VIEW_EVENT_TIME_CFG_UPDATE:
-        case VIEW_EVENT_TIME_CFG_APPLY:
-        case VIEW_EVENT_DISPLAY_CFG_APPLY:
-        case VIEW_EVENT_SHUTDOWN:
-        case VIEW_EVENT_FACTORY_RESET:
-        case VIEW_EVENT_MQTT_ADDR_CHANGED:
-        case VIEW_EVENT_HA_SWITCH_ST:
-        case VIEW_EVENT_HA_SWITCH_SET:
-            return true;
-        default:
-            return false;
+    if (id < VIEW_EVENT_SCREEN_START || id >= VIEW_EVENT_ALL) {
+        return NULL;
     }
-}
-
-static bool view_event_is_state(enum view_event_id id)
-{
-    switch (id) {
-        case VIEW_EVENT_TIME:
-        case VIEW_EVENT_WIFI_ST:
-        case VIEW_EVENT_CITY:
-        case VIEW_EVENT_SENSOR_DATA:
-        case VIEW_EVENT_SENSOR_TEMP_HISTORY:
-        case VIEW_EVENT_SENSOR_HUMIDITY_HISTORY:
-        case VIEW_EVENT_SENSOR_TVOC_HISTORY:
-        case VIEW_EVENT_SENSOR_CO2_HISTORY:
-        case VIEW_EVENT_SENSOR_DATA_HISTORY:
-        case VIEW_EVENT_DISPLAY_CFG:
-        case VIEW_EVENT_BRIGHTNESS_UPDATE:
-        case VIEW_EVENT_SCREEN_CTRL:
-        case VIEW_EVENT_HA_ADDR_DISPLAY:
-        case VIEW_EVENT_HA_SENSOR:
-            return true;
-        default:
-            return false;
+    const struct view_event_descriptor *descriptor = &s_descriptors[id];
+    if (descriptor->category == VIEW_EVENT_CATEGORY_INVALID) {
+        return NULL;
     }
-}
-
-static size_t view_event_expected_payload_size(enum view_event_id id)
-{
-    switch (id) {
-        case VIEW_EVENT_SCREEN_START:
-            return sizeof(uint8_t);
-        case VIEW_EVENT_TIME:
-        case VIEW_EVENT_SCREEN_CTRL:
-            return sizeof(bool);
-        case VIEW_EVENT_WIFI_ST:
-            return sizeof(struct view_data_wifi_st);
-        case VIEW_EVENT_SENSOR_DATA:
-            return sizeof(struct view_data_sensor_data);
-        case VIEW_EVENT_SENSOR_DATA_HISTORY:
-            return sizeof(struct view_data_sensor_history_data);
-        case VIEW_EVENT_WIFI_LIST:
-            return sizeof(struct view_data_wifi_list);
-        case VIEW_EVENT_WIFI_CONNECT:
-            return sizeof(struct view_data_wifi_config);
-        case VIEW_EVENT_WIFI_CONNECT_RET:
-            return sizeof(struct view_data_wifi_connet_ret_msg);
-        case VIEW_EVENT_TIME_CFG_UPDATE:
-        case VIEW_EVENT_TIME_CFG_APPLY:
-            return sizeof(struct view_data_time_cfg);
-        case VIEW_EVENT_DISPLAY_CFG:
-        case VIEW_EVENT_DISPLAY_CFG_APPLY:
-            return sizeof(struct view_data_display);
-        case VIEW_EVENT_BRIGHTNESS_UPDATE:
-            return sizeof(int32_t);
-        case VIEW_EVENT_HA_SENSOR:
-            return sizeof(struct view_data_ha_sensor_data);
-        case VIEW_EVENT_HA_SWITCH_ST:
-        case VIEW_EVENT_HA_SWITCH_SET:
-            return sizeof(struct view_data_ha_switch_data);
-        case VIEW_EVENT_CITY:
-            return 32;
-        case VIEW_EVENT_SENSOR_TEMP_HISTORY:
-        case VIEW_EVENT_SENSOR_HUMIDITY_HISTORY:
-        case VIEW_EVENT_SENSOR_TVOC_HISTORY:
-        case VIEW_EVENT_SENSOR_CO2_HISTORY:
-        case VIEW_EVENT_WIFI_LIST_START:
-        case VIEW_EVENT_WIFI_LIST_REQ:
-        case VIEW_EVENT_WIFI_CFG_DELETE:
-        case VIEW_EVENT_SHUTDOWN:
-        case VIEW_EVENT_FACTORY_RESET:
-        case VIEW_EVENT_MQTT_ADDR_CHANGED:
-        case VIEW_EVENT_HA_ADDR_DISPLAY:
-            return 0;
-        default:
-            return SIZE_MAX;
-    }
+    return descriptor;
 }
 
 static bool view_event_payload_is_valid(
-    enum view_event_id id, const void *payload, size_t payload_size)
+    const struct view_event_descriptor *descriptor,
+    const void *payload,
+    size_t payload_size)
 {
-    size_t expected = view_event_expected_payload_size(id);
-    if (expected == SIZE_MAX || expected != payload_size) {
+    if (descriptor == NULL || descriptor->payload_size != payload_size) {
         return false;
     }
     return payload_size == 0 || payload != NULL;
 }
 
 static uint32_t view_event_state_key(
-    enum view_event_id id, const void *payload)
+    const struct view_event_descriptor *descriptor, const void *payload)
 {
-    switch (id) {
-        case VIEW_EVENT_SENSOR_DATA:
-            return (uint32_t)((const struct view_data_sensor_data *)payload)->sensor_type;
-        case VIEW_EVENT_HA_SENSOR:
-            return (uint32_t)((const struct view_data_ha_sensor_data *)payload)->index;
+    switch (descriptor->key_kind) {
+        case VIEW_EVENT_KEY_SENSOR_TYPE:
+            return (uint32_t)(
+                (const struct view_data_sensor_data *)payload)->sensor_type;
+        case VIEW_EVENT_KEY_HA_SENSOR_INDEX:
+            return (uint32_t)(
+                (const struct view_data_ha_sensor_data *)payload)->index;
+        case VIEW_EVENT_KEY_SINGLETON:
         default:
             return 0;
     }
@@ -165,10 +160,30 @@ static uint32_t view_event_state_key(
 static void view_event_count_invalid(enum view_event_id id)
 {
     (void)id;
-    view_event_adapter_lock();
-    s_stats.invalid_publications++;
-    view_event_adapter_unlock();
+    STATS_INCREMENT(invalid_publications);
     VIEW_EVENT_LOG_ERROR("invalid publication for event %d", (int)id);
+}
+
+static bool view_event_copy_subscriptions(
+    enum view_event_id id,
+    struct view_event_subscription *matches,
+    size_t *match_count)
+{
+    if (!view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
+        STATS_INCREMENT(synchronization_busy);
+        VIEW_EVENT_LOG_ERROR(
+            "subscription synchronization busy for event %d", (int)id);
+        return false;
+    }
+
+    *match_count = 0;
+    for (size_t i = 0; i < s_subscription_count; i++) {
+        if (s_subscriptions[i].id == id) {
+            matches[(*match_count)++] = s_subscriptions[i];
+        }
+    }
+    view_event_adapter_unlock();
+    return true;
 }
 
 static void view_event_dispatch(
@@ -177,14 +192,9 @@ static void view_event_dispatch(
     struct view_event_subscription matches[VIEW_EVENT_MAX_SUBSCRIBERS];
     size_t match_count = 0;
 
-    view_event_adapter_lock();
-    for (size_t i = 0; i < s_subscription_count; i++) {
-        if (s_subscriptions[i].id == id) {
-            matches[match_count++] = s_subscriptions[i];
-        }
+    if (!view_event_copy_subscriptions(id, matches, &match_count)) {
+        return;
     }
-    view_event_adapter_unlock();
-
     for (size_t i = 0; i < match_count; i++) {
         matches[i].handler(matches[i].context, id, payload);
     }
@@ -192,11 +202,11 @@ static void view_event_dispatch(
 
 bool view_event_init(void)
 {
-    if (!view_event_adapter_init()) {
+    if (!view_event_adapter_init() ||
+        !view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
         return false;
     }
 
-    view_event_adapter_lock();
     memset(s_subscriptions, 0, sizeof(s_subscriptions));
     memset(s_state_slots, 0, sizeof(s_state_slots));
     memset(&s_stats, 0, sizeof(s_stats));
@@ -208,12 +218,12 @@ bool view_event_init(void)
 bool view_event_subscribe(
     enum view_event_id id, view_event_handler_t handler, void *context)
 {
-    if (!view_event_id_is_valid(id) || handler == NULL) {
+    if (view_event_descriptor_for(id) == NULL || handler == NULL ||
+        !view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
         return false;
     }
 
     bool subscribed = false;
-    view_event_adapter_lock();
     if (s_subscription_count < VIEW_EVENT_MAX_SUBSCRIBERS) {
         s_subscriptions[s_subscription_count++] = (struct view_event_subscription){
             .id = id,
@@ -229,46 +239,60 @@ bool view_event_subscribe(
 view_event_delivery_t view_event_post_command(
     enum view_event_id id, const void *payload, size_t payload_size)
 {
-    if (!view_event_is_command(id) ||
-        !view_event_payload_is_valid(id, payload, payload_size) ||
+    const struct view_event_descriptor *descriptor =
+        view_event_descriptor_for(id);
+    if (descriptor == NULL ||
+        descriptor->category != VIEW_EVENT_CATEGORY_COMMAND ||
+        !view_event_payload_is_valid(descriptor, payload, payload_size) ||
         payload_size > VIEW_EVENT_MAX_PAYLOAD_SIZE) {
         view_event_count_invalid(id);
         return VIEW_EVENT_DELIVERY_INVALID;
     }
 
-    view_event_adapter_result_t result =
-        view_event_adapter_post_command(id, payload, payload_size);
-
-    view_event_adapter_lock();
-    if (result == VIEW_EVENT_ADAPTER_OK) {
-        s_stats.command_enqueued++;
-    } else {
-        s_stats.command_rejected++;
+    for (unsigned attempt = 0; attempt < VIEW_EVENT_COMMAND_ATTEMPTS; attempt++) {
+        view_event_adapter_result_t result =
+            view_event_adapter_post_command(id, payload, payload_size);
+        if (result == VIEW_EVENT_ADAPTER_OK) {
+            STATS_INCREMENT(command_enqueued);
+            return VIEW_EVENT_DELIVERY_ENQUEUED;
+        }
+        if (attempt + 1 < VIEW_EVENT_COMMAND_ATTEMPTS) {
+            STATS_INCREMENT(command_retries);
+        }
     }
-    view_event_adapter_unlock();
 
-    if (result != VIEW_EVENT_ADAPTER_OK) {
-        VIEW_EVENT_LOG_ERROR("critical command %d rejected by delivery adapter", (int)id);
-        return VIEW_EVENT_DELIVERY_REJECTED;
-    }
-    return VIEW_EVENT_DELIVERY_ENQUEUED;
+    STATS_INCREMENT(command_rejected);
+    VIEW_EVENT_LOG_ERROR(
+        "critical command %d rejected after %u bounded attempts",
+        (int)id,
+        VIEW_EVENT_COMMAND_ATTEMPTS);
+    return VIEW_EVENT_DELIVERY_REJECTED;
 }
 
 view_event_delivery_t view_event_publish_state(
     enum view_event_id id, const void *payload, size_t payload_size)
 {
-    if (!view_event_is_state(id) ||
-        !view_event_payload_is_valid(id, payload, payload_size) ||
+    const struct view_event_descriptor *descriptor =
+        view_event_descriptor_for(id);
+    if (descriptor == NULL ||
+        descriptor->category != VIEW_EVENT_CATEGORY_STATE ||
+        !view_event_payload_is_valid(descriptor, payload, payload_size) ||
         payload_size > VIEW_EVENT_MAX_PAYLOAD_SIZE) {
         view_event_count_invalid(id);
         return VIEW_EVENT_DELIVERY_INVALID;
     }
 
-    uint32_t key = view_event_state_key(id, payload);
+    if (!view_event_adapter_lock(VIEW_EVENT_STATE_LOCK_WAIT_MS)) {
+        STATS_INCREMENT(synchronization_busy);
+        STATS_INCREMENT(state_dropped);
+        VIEW_EVENT_LOG_ERROR(
+            "replaceable state %d dropped: synchronization busy", (int)id);
+        return VIEW_EVENT_DELIVERY_DROPPED;
+    }
+
+    uint32_t key = view_event_state_key(descriptor, payload);
     size_t slot = VIEW_EVENT_MAX_STATE_SLOTS;
     bool coalesced = false;
-
-    view_event_adapter_lock();
     for (size_t i = 0; i < VIEW_EVENT_MAX_STATE_SLOTS; i++) {
         if (s_state_slots[i].used &&
             s_state_slots[i].id == id &&
@@ -282,45 +306,42 @@ view_event_delivery_t view_event_publish_state(
         }
     }
 
-    if (slot < VIEW_EVENT_MAX_STATE_SLOTS) {
-        struct view_event_state_slot *state = &s_state_slots[slot];
-        state->used = true;
-        state->id = id;
-        state->key = key;
-        state->payload_size = payload_size;
-        if (payload_size > 0) {
-            memcpy(state->payload.bytes, payload, payload_size);
-        }
-        if (coalesced) {
-            s_stats.state_coalesced++;
-        }
-    }
     if (slot == VIEW_EVENT_MAX_STATE_SLOTS) {
-        s_stats.state_dropped++;
         view_event_adapter_unlock();
+        STATS_INCREMENT(state_dropped);
         VIEW_EVENT_LOG_ERROR("no state slot available for event %d", (int)id);
         return VIEW_EVENT_DELIVERY_DROPPED;
     }
 
+    struct view_event_state_slot *state = &s_state_slots[slot];
+    state->used = true;
+    state->id = id;
+    state->key = key;
+    state->payload_size = payload_size;
+    if (payload_size > 0) {
+        memcpy(state->payload.bytes, payload, payload_size);
+    }
     if (coalesced) {
         view_event_adapter_unlock();
+        STATS_INCREMENT(state_coalesced);
         return VIEW_EVENT_DELIVERY_COALESCED;
     }
 
     view_event_adapter_result_t result = view_event_adapter_post_state(slot);
-    if (result == VIEW_EVENT_ADAPTER_OK) {
-        s_stats.state_enqueued++;
-    } else {
-        memset(&s_state_slots[slot], 0, sizeof(s_state_slots[slot]));
-        s_stats.state_dropped++;
+    if (result != VIEW_EVENT_ADAPTER_OK) {
+        memset(state, 0, sizeof(*state));
     }
     view_event_adapter_unlock();
 
-    if (result != VIEW_EVENT_ADAPTER_OK) {
-        VIEW_EVENT_LOG_ERROR("replaceable state %d dropped by delivery adapter", (int)id);
-        return VIEW_EVENT_DELIVERY_DROPPED;
+    if (result == VIEW_EVENT_ADAPTER_OK) {
+        STATS_INCREMENT(state_enqueued);
+        return VIEW_EVENT_DELIVERY_ENQUEUED;
     }
-    return VIEW_EVENT_DELIVERY_ENQUEUED;
+
+    STATS_INCREMENT(state_dropped);
+    VIEW_EVENT_LOG_ERROR(
+        "replaceable state %d dropped by delivery adapter", (int)id);
+    return VIEW_EVENT_DELIVERY_DROPPED;
 }
 
 void view_event_stats_get(struct view_event_stats *stats)
@@ -328,41 +349,49 @@ void view_event_stats_get(struct view_event_stats *stats)
     if (stats == NULL) {
         return;
     }
-    view_event_adapter_lock();
-    *stats = s_stats;
-    view_event_adapter_unlock();
+    *stats = (struct view_event_stats){
+        .command_enqueued = STATS_LOAD(command_enqueued),
+        .command_retries = STATS_LOAD(command_retries),
+        .command_rejected = STATS_LOAD(command_rejected),
+        .command_dispatched = STATS_LOAD(command_dispatched),
+        .state_enqueued = STATS_LOAD(state_enqueued),
+        .state_coalesced = STATS_LOAD(state_coalesced),
+        .state_dropped = STATS_LOAD(state_dropped),
+        .state_dispatched = STATS_LOAD(state_dispatched),
+        .synchronization_busy = STATS_LOAD(synchronization_busy),
+        .invalid_publications = STATS_LOAD(invalid_publications),
+    };
 }
 
 void view_event_internal_dispatch_command(
     enum view_event_id id, const void *payload)
 {
-    view_event_adapter_lock();
-    s_stats.command_dispatched++;
-    view_event_adapter_unlock();
+    STATS_INCREMENT(command_dispatched);
     view_event_dispatch(id, payload);
 }
 
-void view_event_internal_dispatch_state(size_t slot)
+bool view_event_internal_dispatch_state(size_t slot)
 {
-    if (slot >= VIEW_EVENT_MAX_STATE_SLOTS) {
-        return;
+    if (slot >= VIEW_EVENT_MAX_STATE_SLOTS ||
+        !view_event_adapter_lock(VIEW_EVENT_INTERNAL_LOCK_WAIT_MS)) {
+        STATS_INCREMENT(synchronization_busy);
+        return false;
     }
 
     struct view_event_state_slot delivered;
     bool available = false;
-
-    view_event_adapter_lock();
     if (s_state_slots[slot].used) {
         delivered = s_state_slots[slot];
         memset(&s_state_slots[slot], 0, sizeof(s_state_slots[slot]));
-        s_stats.state_dispatched++;
         available = true;
     }
     view_event_adapter_unlock();
 
     if (available) {
+        STATS_INCREMENT(state_dispatched);
         const void *payload =
             delivered.payload_size > 0 ? delivered.payload.bytes : NULL;
         view_event_dispatch(delivered.id, payload);
     }
+    return true;
 }

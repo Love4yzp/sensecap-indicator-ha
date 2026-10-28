@@ -19,10 +19,10 @@ HARNESS = r"""
 
 #include "button_press_state.h"
 
-static button_press_action_t hold_until(unsigned target_ms, bool sleeping)
+static button_press_action_t hold_times(unsigned count, bool sleeping)
 {
     button_press_action_t action = BUTTON_PRESS_ACTION_NONE;
-    while (button_press_elapsed_ms() < target_ms) {
+    for (unsigned i = 0; i < count; i++) {
         button_press_action_t next = button_press_hold(100, sleeping);
         if (next != BUTTON_PRESS_ACTION_NONE) {
             action = next;
@@ -34,21 +34,25 @@ static button_press_action_t hold_until(unsigned target_ms, bool sleeping)
 int main(void)
 {
     button_press_begin();
-    assert(hold_until(3100, false) == BUTTON_PRESS_ACTION_PREPARE_SLEEP);
+    assert(hold_times(16, false) == BUTTON_PRESS_ACTION_PREPARE_SLEEP);
     assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
-    assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
-
-    button_press_begin();
-    assert(hold_until(3100, false) == BUTTON_PRESS_ACTION_PREPARE_SLEEP);
+    /* Rejection leaves shutdown pending and safe to retry. */
     assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
+    button_press_shutdown_accepted();
+    assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
 
     button_press_begin();
-    assert(hold_until(10100, false) == BUTTON_PRESS_ACTION_FACTORY_RESET);
+    assert(hold_times(16, false) == BUTTON_PRESS_ACTION_PREPARE_SLEEP);
+    assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
+    button_press_shutdown_accepted();
+
+    button_press_begin();
+    assert(hold_times(86, false) == BUTTON_PRESS_ACTION_FACTORY_RESET);
     assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
     assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
 
     button_press_begin();
-    assert(hold_until(3100, true) == BUTTON_PRESS_ACTION_RESTART);
+    assert(hold_times(16, true) == BUTTON_PRESS_ACTION_RESTART);
     assert(button_press_hold(100, true) == BUTTON_PRESS_ACTION_NONE);
 
     return 0;

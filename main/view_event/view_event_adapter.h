@@ -46,12 +46,12 @@ bool view_event_adapter_init(void);
 view_event_adapter_result_t view_event_adapter_post_command(
     enum view_event_id id, const void *payload, size_t payload_size);
 view_event_adapter_result_t view_event_adapter_post_state(size_t slot);
-void view_event_adapter_lock(void);
+bool view_event_adapter_lock(uint32_t timeout_ms);
 void view_event_adapter_unlock(void);
 
 /* Called only by delivery adapters after transport acceptance. */
 void view_event_internal_dispatch_command(
     enum view_event_id id, const void *payload);
-void view_event_internal_dispatch_state(size_t slot);
+bool view_event_internal_dispatch_state(size_t slot);
 
 #endif /* VIEW_EVENT_ADAPTER_H */

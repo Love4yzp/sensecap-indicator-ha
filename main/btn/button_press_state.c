@@ -56,11 +56,10 @@ button_press_action_t button_press_release(void)
         return BUTTON_PRESS_ACTION_NONE;
     }
 
-    s_shutdown_emitted = true;
     return BUTTON_PRESS_ACTION_SHUTDOWN;
 }
 
-uint32_t button_press_elapsed_ms(void)
+void button_press_shutdown_accepted(void)
 {
-    return s_elapsed_ms;
+    s_shutdown_emitted = true;
 }

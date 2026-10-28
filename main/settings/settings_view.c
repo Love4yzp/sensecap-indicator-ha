@@ -51,18 +51,24 @@ static void settings_hide_modal(void)
 	}
 }
 
-static void settings_post_screen(enum start_screen screen)
+static bool settings_post_screen(enum start_screen screen)
 {
 	uint8_t screen_id = (uint8_t)screen;
-	view_event_post_command(
+	view_event_delivery_t delivery = view_event_post_command(
 		VIEW_EVENT_SCREEN_START, &screen_id, sizeof(screen_id));
+	if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
+	{
+		ESP_LOGE(TAG, "screen command rejected: delivery=%d", (int)delivery);
+		return false;
+	}
+	return true;
 }
 
 static void settings_open_wifi(lv_event_t *e)
 {
 	if(lv_event_get_code(e) == LV_EVENT_CLICKED)
 	{
-		settings_post_screen(SCREEN_WIFI_CONFIG);
+		(void)settings_post_screen(SCREEN_WIFI_CONFIG);
 	}
 }
 
@@ -70,7 +76,7 @@ static void settings_open_display(lv_event_t *e)
 {
 	if(lv_event_get_code(e) == LV_EVENT_CLICKED)
 	{
-		settings_post_screen(SCREEN_DISPLAY_MODAL);
+		(void)settings_post_screen(SCREEN_DISPLAY_MODAL);
 	}
 }
 
@@ -78,7 +84,7 @@ static void settings_open_broker(lv_event_t *e)
 {
 	if(lv_event_get_code(e) == LV_EVENT_CLICKED)
 	{
-		settings_post_screen(SCREEN_BROKER_MODAL);
+		(void)settings_post_screen(SCREEN_BROKER_MODAL);
 	}
 }
 

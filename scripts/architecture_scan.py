@@ -129,7 +129,7 @@ HA_SWITCH_SCREEN_GLOBAL_RE = re.compile(r"\bui_switch(?:[0-9]|_btn3)\w*\b")
 BSP_INCLUDE_RE = re.compile(r"#\s*include\s+[<\"](bsp_[^>\"]+)[>\"]")
 SERVICE_CALLBACK_RE = re.compile(r"\b([a-zA-Z0-9_]+_register_(?:cb|callback))\s*\(")
 VIEW_EVENT_PRIVATE_INCLUDE_RE = re.compile(
-    r"#\s*include\s*[<\"]view_event_adapter\.h[>\"]"
+    r"#\s*include\s*[<\"][^>\"]*view_event_adapter\.h[>\"]"
 )
 VIEW_EVENT_LEGACY_TRANSPORT_RE = re.compile(
     r"\b(view_event_handle|VIEW_EVENT_BASE)\b"
@@ -137,6 +137,9 @@ VIEW_EVENT_LEGACY_TRANSPORT_RE = re.compile(
 VIEW_EVENT_INTERNAL_TRANSPORT_RE = re.compile(r"\bVIEW_EVENT_TRANSPORT_BASE\b")
 ESP_EVENT_TRANSPORT_CALL_RE = re.compile(
     r"\b(esp_event_post_to|esp_event_handler_instance_register_with)\s*\("
+)
+VIEW_EVENT_IGNORED_COMMAND_RE = re.compile(
+    r"(?m)^\s*view_event_post_command\s*\("
 )
 
 
@@ -420,6 +423,21 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
                 "view-event-adapter-boundary",
                 f"{match.group(1)} belongs only in view_event_esp_adapter.c",
             )
+
+    for match in VIEW_EVENT_IGNORED_COMMAND_RE.finditer(code_text):
+        line_start = code_text.rfind("\n", 0, match.start()) + 1
+        previous_end = line_start - 1
+        previous_start = code_text.rfind("\n", 0, previous_end) + 1
+        previous_line = code_text[previous_start:previous_end].strip()
+        if previous_line.endswith("=") or previous_line == "return":
+            continue
+        add_finding(
+            findings,
+            path,
+            line_number(text, match.start()),
+            "view-event-command-result",
+            "critical command delivery results must be handled explicitly",
+        )
 
 
 def scan() -> list[Finding]:

@@ -15,6 +15,6 @@ typedef enum {
 void button_press_begin(void);
 button_press_action_t button_press_hold(uint32_t elapsed_delta_ms, bool sleeping);
 button_press_action_t button_press_release(void);
-uint32_t button_press_elapsed_ms(void);
+void button_press_shutdown_accepted(void);
 
 #endif /* BUTTON_PRESS_STATE_H */

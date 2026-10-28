@@ -25,6 +25,7 @@ static lv_obj_t* s_display_keyboard = NULL;
 
 static void _apply_display_cfg_to_widgets(const struct view_data_display* cfg);
 static void _ensure_display_modal(void);
+static bool _post_display_cfg(void);
 
 static void _sync_sleep_time_panel(void) {
 	if(!s_sleep_mode_cfg || !s_sleep_mode_time_panel)
@@ -79,8 +80,10 @@ static void _on_display_close(lv_event_t* e) {
 		return;
 	}
 
-	display_cfg_apply_event_cb(e);
-	_hide_display_modal();
+	if(_post_display_cfg())
+	{
+		_hide_display_modal();
+	}
 }
 
 static void _on_sleep_mode_changed(lv_event_t* e) {
@@ -90,7 +93,12 @@ static void _on_sleep_mode_changed(lv_event_t* e) {
 	}
 
 	_sync_sleep_time_panel();
-	display_cfg_apply_event_cb(e);
+	if(!_post_display_cfg())
+	{
+		struct view_data_display cfg;
+		_display_cfg_get(&cfg);
+		_apply_display_cfg_to_widgets(&cfg);
+	}
 }
 
 static void _on_sleep_time_clicked(lv_event_t* e) {
@@ -113,7 +121,12 @@ static void _on_keyboard_done(lv_event_t* e) {
 	{
 		lv_obj_add_flag(s_display_keyboard, LV_OBJ_FLAG_HIDDEN);
 	}
-	display_cfg_apply_event_cb(e);
+	if(!_post_display_cfg())
+	{
+		struct view_data_display cfg;
+		_display_cfg_get(&cfg);
+		_apply_display_cfg_to_widgets(&cfg);
+	}
 }
 
 static void _ensure_display_modal(void) {
@@ -323,18 +336,30 @@ void brighness_cfg_event_cb(lv_event_t* e) // Value changed
 		VIEW_EVENT_BRIGHTNESS_UPDATE, &value, sizeof(value));
 }
 
-// static void _display_cfg_apply_event_cb(lv_event_t * e)
-void display_cfg_apply_event_cb(lv_event_t* e) // defocused the textarea
+static bool _post_display_cfg(void)
 {
 	struct view_data_display cfg;
 	memset(&cfg, 0, sizeof(cfg));
 	if(!s_brightness_cfg || !s_sleep_mode_cfg || !s_sleep_mode_time_cfg)
 	{
-		return;
+		return false;
 	}
 	_display_cfg_from_widgets(&cfg);
-	view_event_post_command(
+	view_event_delivery_t delivery = view_event_post_command(
 		VIEW_EVENT_DISPLAY_CFG_APPLY, &cfg, sizeof(cfg));
+	if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED)
+	{
+		ESP_LOGE("display-view", "display config rejected: delivery=%d", (int)delivery);
+		return false;
+	}
+	return true;
+}
+
+// static void _display_cfg_apply_event_cb(lv_event_t * e)
+void display_cfg_apply_event_cb(lv_event_t* e) // defocused the textarea
+{
+	(void)e;
+	(void)_post_display_cfg();
 }
 
 void brighness_update_callback(lv_event_t* e) {

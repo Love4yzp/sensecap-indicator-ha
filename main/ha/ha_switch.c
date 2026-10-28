@@ -88,8 +88,15 @@ static void restore_data_task(void *args)
 
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
         struct view_data_ha_switch_data switch_data = {.index = i, .value = switch_state[i]};
-        view_event_post_command(
+        view_event_delivery_t delivery = view_event_post_command(
             VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
+        if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+            ESP_LOGE(
+                TAG,
+                "restore switch %d rejected: delivery=%d",
+                i,
+                (int)delivery);
+        }
 
         ESP_LOGI(TAG, "Restored switch %d state: %d", i, switch_state[i]);
 
@@ -184,8 +191,16 @@ int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, i
             if (cjson_item != NULL && cJSON_IsNumber(cjson_item)) {
                 struct view_data_ha_switch_data switch_data = {.index = i, .value = cjson_item->valueint};
                 ESP_LOGI(TAG, "MQTT message: %s set to %d", ha_switch_entities[i].key, switch_data.value);
-                view_event_post_command(
+                view_event_delivery_t delivery = view_event_post_command(
                     VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
+                if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+                    ESP_LOGE(
+                        TAG,
+                        "MQTT switch update rejected: delivery=%d",
+                        (int)delivery);
+                    cJSON_Delete(root);
+                    return -1;
+                }
                 cJSON_Delete(root);
                 return 0;
             }

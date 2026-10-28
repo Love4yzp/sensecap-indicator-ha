@@ -70,7 +70,7 @@ class UiGeometryTests(unittest.TestCase):
         self.assertIn('esp_netif_get_handle_from_ifkey("WIFI_STA_DEF")', settings_text)
         self.assertIn('"IP: not connected"', settings_text)
 
-        post_screen_start = settings_text.index("static void settings_post_screen")
+        post_screen_start = settings_text.index("static bool settings_post_screen")
         post_screen_end = settings_text.index("static void settings_open_wifi")
         post_screen_body = settings_text[post_screen_start:post_screen_end]
         self.assertNotIn("settings_hide_modal();", post_screen_body)
@@ -103,7 +103,10 @@ class UiGeometryTests(unittest.TestCase):
 
         self.assertIn("static bool s_discard_next_list = false;", text)
         self.assertIn("static bool s_wifi_scan_pending = false;", text)
-        self.assertIn("s_wifi_scan_pending = true;", text)
+        self.assertIn(
+            "s_wifi_scan_pending = delivery == VIEW_EVENT_DELIVERY_ENQUEUED;",
+            text,
+        )
         self.assertIn("s_wifi_scan_pending = false;", text)
         self.assertIn("discard stale scan result", text)
 

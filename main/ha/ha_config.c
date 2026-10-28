@@ -79,7 +79,11 @@ static void _on_broker_confirm(lv_event_t *e)
         return;
     }
 
-    view_event_post_command(VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, 0);
+    view_event_delivery_t delivery =
+        view_event_post_command(VIEW_EVENT_MQTT_ADDR_CHANGED, NULL, 0);
+    if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+        ESP_LOGE(TAG, "broker update rejected: delivery=%d", (int)delivery);
+    }
 }
 
 static void _on_ip_textarea_clicked(lv_event_t *e)

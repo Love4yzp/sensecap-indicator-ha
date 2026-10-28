@@ -83,7 +83,15 @@ static void _btn_long_press_hold_callback(void *arg) {
         }
         case BUTTON_PRESS_ACTION_FACTORY_RESET: {
             ESP_LOGI(TAG, "factory reset");
-            view_event_post_command(VIEW_EVENT_FACTORY_RESET, NULL, 0);
+            view_event_delivery_t delivery =
+                view_event_post_command(VIEW_EVENT_FACTORY_RESET, NULL, 0);
+            if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+                ESP_LOGE(
+                    TAG,
+                    "factory reset command rejected: delivery=%d",
+                    (int)delivery);
+                break;
+            }
             bool st = 1;
             view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
             indicator_display_on();
@@ -106,9 +114,21 @@ static void _btn_long_press_hold_callback(void *arg) {
 
 static void _btn_press_up_callback(void *arg) {
     if (button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN) {
-        ESP_LOGI(TAG, "entry sleep mode");
-        sleep_flag = true;
-        view_event_post_command(VIEW_EVENT_SHUTDOWN, NULL, 0);
+        view_event_delivery_t delivery =
+            view_event_post_command(VIEW_EVENT_SHUTDOWN, NULL, 0);
+        if (delivery == VIEW_EVENT_DELIVERY_ENQUEUED) {
+            ESP_LOGI(TAG, "entry sleep mode");
+            button_press_shutdown_accepted();
+            sleep_flag = true;
+        } else {
+            ESP_LOGE(
+                TAG,
+                "shutdown command rejected; staying awake: delivery=%d",
+                (int)delivery);
+            bool st = 1;
+            view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
+            indicator_display_on();
+        }
     }
 }
 

@@ -24,15 +24,20 @@ HARNESS = r"""
 #include "view_event_adapter.h"
 
 static view_event_adapter_result_t command_result = VIEW_EVENT_ADAPTER_OK;
+static view_event_adapter_result_t command_results[8];
+static unsigned command_result_count;
 static view_event_adapter_result_t state_result = VIEW_EVENT_ADAPTER_OK;
 static unsigned command_calls;
 static unsigned pending_count;
 static size_t pending_slots[32];
+static bool sync_busy;
 
 bool view_event_adapter_init(void)
 {
     command_calls = 0;
+    command_result_count = 0;
     pending_count = 0;
+    sync_busy = false;
     return true;
 }
 
@@ -42,7 +47,10 @@ view_event_adapter_result_t view_event_adapter_post_command(
     (void)id;
     (void)payload;
     (void)payload_size;
-    command_calls++;
+    unsigned call = command_calls++;
+    if (call < command_result_count) {
+        return command_results[call];
+    }
     return command_result;
 }
 
@@ -55,7 +63,11 @@ view_event_adapter_result_t view_event_adapter_post_state(size_t slot)
     return state_result;
 }
 
-void view_event_adapter_lock(void) {}
+bool view_event_adapter_lock(uint32_t timeout_ms)
+{
+    (void)timeout_ms;
+    return !sync_busy;
+}
 void view_event_adapter_unlock(void) {}
 
 static void drain_all(void)
@@ -100,18 +112,35 @@ int main(void)
     assert(view_event_init());
     assert(view_event_subscribe(VIEW_EVENT_SENSOR_DATA, sensor_handler, NULL));
 
-    command_result = VIEW_EVENT_ADAPTER_FULL;
+    command_results[0] = VIEW_EVENT_ADAPTER_FULL;
+    command_results[1] = VIEW_EVENT_ADAPTER_FULL;
+    command_results[2] = VIEW_EVENT_ADAPTER_OK;
+    command_result_count = 3;
     double started = monotonic_seconds();
     view_event_delivery_t result = simulated_lvgl_callback();
     double elapsed = monotonic_seconds() - started;
 
-    assert(result == VIEW_EVENT_DELIVERY_REJECTED);
-    assert(command_calls == 1);
+    assert(result == VIEW_EVENT_DELIVERY_ENQUEUED);
+    assert(command_calls == 3);
     assert(elapsed < 0.100);
 
     struct view_event_stats stats;
     view_event_stats_get(&stats);
+    assert(stats.command_enqueued == 1);
+    assert(stats.command_retries == 2);
+
+    command_calls = 0;
+    command_result_count = 0;
+    command_result = VIEW_EVENT_ADAPTER_FULL;
+    started = monotonic_seconds();
+    result = simulated_lvgl_callback();
+    elapsed = monotonic_seconds() - started;
+    assert(result == VIEW_EVENT_DELIVERY_REJECTED);
+    assert(command_calls == 3);
+    assert(elapsed < 0.100);
+    view_event_stats_get(&stats);
     assert(stats.command_rejected == 1);
+    assert(stats.command_retries == 4);
 
     command_result = VIEW_EVENT_ADAPTER_OK;
     assert(view_event_publish_state(
@@ -164,6 +193,18 @@ int main(void)
            VIEW_EVENT_DELIVERY_DROPPED);
     view_event_stats_get(&stats);
     assert(stats.state_dropped == 1);
+
+    sync_busy = true;
+    started = monotonic_seconds();
+    result = view_event_publish_state(
+        VIEW_EVENT_SENSOR_DATA, &co2, sizeof(co2));
+    elapsed = monotonic_seconds() - started;
+    assert(result == VIEW_EVENT_DELIVERY_DROPPED);
+    assert(elapsed < 0.100);
+    sync_busy = false;
+    view_event_stats_get(&stats);
+    assert(stats.state_dropped == 2);
+    assert(stats.synchronization_busy == 1);
 
     return 0;
 }
