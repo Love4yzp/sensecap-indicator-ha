@@ -3,8 +3,10 @@
 
 import json
 import unittest
+from pathlib import Path
 
 
+ROOT = Path(__file__).resolve().parent.parent
 SWITCH_SET_TOPIC = "indicator/switch/set"
 SWITCH_STATE_TOPIC = "indicator/switch/state"
 SWITCH_KEYS = [f"switch{i}" for i in range(1, 9)]
@@ -98,6 +100,48 @@ class TestSwitchPublish(unittest.TestCase):
 
     def test_invalid_index_overflow(self):
         self.assertIsNone(format_switch_publish(8, 1))
+
+
+class TestSwitchScreenDeliveryState(unittest.TestCase):
+    def setUp(self):
+        self.source = (
+            ROOT / "main" / "ha" / "ha_switch_screen.c"
+        ).read_text(encoding="utf-8")
+
+    def test_model_update_records_the_accepted_value_without_posting(self):
+        update = self.source.split(
+            "void ha_switch_screen_update", 1
+        )[1]
+        update = update.split("\n}", 1)[0]
+        self.assertIn("slot->accepted_value = value;", update)
+        self.assertIn("_apply_slot_value(slot, value);", update)
+
+    def test_programmatic_arc_and_slider_updates_suppress_command_post(self):
+        self.assertIn("bool suppress_post;", self.source)
+        for callback_name in ("_arc_event_cb", "_slider_event_cb"):
+            callback = self.source.split(
+                f"static void {callback_name}", 1
+            )[1].split("\n}", 1)[0]
+            suppress = callback.index("slot->suppress_post")
+            post = callback.index("_post_switch_value")
+            self.assertLess(suppress, post)
+
+        apply_value = self.source.split(
+            "static void _apply_slot_value", 1
+        )[1].split("\n}", 1)[0]
+        self.assertIn("slot->suppress_post = true;", apply_value)
+        self.assertIn("slot->update(", apply_value)
+        self.assertIn("slot->suppress_post = false;", apply_value)
+
+    def test_rejection_rollback_uses_suppressed_programmatic_update(self):
+        restore = self.source.split(
+            "static void _restore_slot_value", 1
+        )[1].split("\n}", 1)[0]
+        self.assertIn(
+            "_apply_slot_value(slot, slot->accepted_value);", restore
+        )
+        self.assertNotIn("lv_arc_set_value", restore)
+        self.assertNotIn("lv_slider_set_value", restore)
 
 
 if __name__ == "__main__":
