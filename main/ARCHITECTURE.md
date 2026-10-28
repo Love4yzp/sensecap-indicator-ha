@@ -165,6 +165,17 @@ Allowed LVGL ownership is intentionally narrow:
 | `*_view.c` and `*_screen.c` files | Domain widgets and callbacks |
 | model/controller files | No LVGL object ownership |
 
+### LVGL health diagnostics
+
+`lv_port.c` owns the LVGL-side heartbeat adapter. A periodic LVGL timer invokes
+`lvgl_health_heartbeat()` from the real LVGL task, allowing
+`main/lvgl_health/` to capture `xTaskGetCurrentTaskHandle()` without a task-name
+lookup. The health module may observe the captured task's state and stack
+low-water mark, but it must not call LVGL APIs, mutate the LVGL task, or restart
+the device. Stall policy is isolated in the host-testable
+`lvgl_health_state.[ch]` module and documented in
+`docs/stability/milestone-3-lvgl-health.md`.
+
 ---
 
 ## Architectural Pattern
