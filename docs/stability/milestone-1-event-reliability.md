@@ -120,8 +120,9 @@ validates category and exact payload size before passing data through its
 internal adapter seam.
 
 The ESP production adapter keeps the existing queue depth (10) and task stack
-(10240 bytes). Critical commands use one module-owned 20 ms enqueue bound.
-Replaceable state uses a zero-wait token and module-owned state slots. Slot
+(10240 bytes). Critical commands use three module-owned 5 ms attempts, for a
+maximum 15 ms transport wait. Replaceable state uses zero-wait synchronization,
+a zero-wait token, and module-owned state slots. Slot
 mutation and token acceptance are serialized so concurrent producers cannot
 report a coalesced value that has no queued delivery token.
 
@@ -131,9 +132,11 @@ State keys are:
 - `VIEW_EVENT_HA_SENSOR`: `index`;
 - all other state events: one latest value per event.
 
-`view_event_stats_get()` reports command enqueued/rejected/dispatched, state
-enqueued/coalesced/dropped/dispatched, and invalid publication counts. Rejected
-commands and dropped states also produce a centralized error log.
+`view_event_stats_get()` reports command enqueued/retries/rejected/dispatched,
+state enqueued/coalesced/dropped/dispatched, internal synchronization-busy, and
+invalid publication counts. Rejected commands and dropped states also produce
+a centralized error log. Category, exact payload size, and coalescing-key
+metadata come from one descriptor table indexed by `view_event_id`.
 
 `main/view_event/view_event_adapter.h` is an internal seam. The production
 adapter is `view_event_esp_adapter.c`; the host regression harness supplies a
@@ -171,6 +174,16 @@ would be a behavior change. Network-false state continues to arrive through
 The event enum is also checked for an inline payload and command/state policy
 comment. Unit tests cover each new boundary rule.
 
+## Wi-Fi scan worker
+
+`wifi_scan_worker` is a Wi-Fi-owned deep module. Its public interface only
+initializes the worker and submits a connected-state snapshot. The production
+adapter owns a queue of length one and overwrites pending work, so request
+submission is nonblocking and repeated requests coalesce. The worker task runs
+the synchronous ESP-IDF scan, de-duplicates SSIDs, builds the existing payload,
+and publishes the result. The view-event delivery task only submits work and
+returns; it no longer scans and posts back into its own queue.
+
 ## Sleep/shutdown idempotency
 
 The current button code uses independent global flags and posts shutdown from
@@ -186,10 +199,13 @@ existing display-off preview, short-click restart, Wi-Fi stop, RP2040 shutdown,
 and restart behavior remain outside that module and unchanged.
 
 Implemented in `main/btn/button_press_state.[ch]`: each long-press start resets
-the per-press state; prepare-sleep, sleeping restart, factory reset, and
-shutdown are emitted at most once as appropriate. Release after factory reset
-cannot additionally emit shutdown. The existing consumers still own Wi-Fi stop
-and RP2040 shutdown behavior.
+the per-press state; prepare-sleep, sleeping restart, and factory reset remain
+idempotent. Shutdown uses two-phase acceptance: release keeps returning a
+retryable shutdown action until `view_event_post_command()` accepts it, then
+`button_press_shutdown_accepted()` consumes the action and `sleep_flag` is set.
+Rejection restores the display and leaves the device awake. Release after
+factory reset cannot additionally emit shutdown. Existing consumers still own
+Wi-Fi stop and RP2040 shutdown behavior.
 
 ## Host verification
 
@@ -198,16 +214,22 @@ that:
 
 - a simulated LVGL callback returns in under 100 ms when the controllable
   adapter reports a full command queue;
-- a rejected command is attempted once and counted;
+- a command retries centrally, succeeds after temporary fullness, and rejects
+  after the fixed third attempt;
+- state publication returns promptly and counts a drop when internal
+  synchronization is busy;
 - same-key sensor state coalesces while different keys retain separate
   deliveries;
 - adapter-full state is dropped and counted;
 - invalid category/payload use is rejected;
 - the largest declared history payload fits the module contract.
 
-`scripts/test_button_press_state.py` verifies duplicate release idempotency,
-new-press reset, factory-reset/shutdown exclusion, and one restart action for a
-sleeping long hold.
+`scripts/test_button_press_state.py` verifies rejected shutdown remains
+retryable until explicit acceptance, new-press reset,
+factory-reset/shutdown exclusion, and one restart action for a sleeping long
+hold. `scripts/test_wifi_scan_worker.py` verifies requests return without
+running a scan inline, pending requests coalesce, adapter-busy returns promptly,
+and result construction preserves the latest connection snapshot.
 
 ## Explicitly deferred
 

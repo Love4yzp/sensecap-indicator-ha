@@ -1,12 +1,12 @@
 # Hardware smoke checklist
 
-Use this checklist for the ESP-IDF v5.5.6 Milestone 0 image. Record the device
+Use this checklist for the ESP-IDF v5.5.6 Milestone 1 stage-1 image. Record the device
 revision, ESP32-S3/RP2040 firmware commits, tester, date, serial port, and any
 attached Grove hardware before testing.
 
 Do not change BSP, LCD/touch bus, DMA/timing, RP2040 protocol, partitions, or
 eFuse settings while executing this checklist. A failure is evidence for a
-separate scoped investigation, not permission to tune drivers in Milestone 0.
+separate scoped investigation, not permission to tune drivers in this stage.
 
 ## Test record
 
@@ -39,7 +39,7 @@ Expected source order:
 ```text
 bsp_board_init
 lv_port_init
-create view_event_handle
+view_event_init()
 indicator_view_init
 indicator_model_init
 ```
@@ -59,6 +59,8 @@ command console, Wi-Fi, MQTT, and Home Assistant logic.
 - [ ] Confirm touches align with rendered controls across all screen edges.
 - [ ] Repeat rapid navigation for at least two minutes and confirm the display
   continues refreshing.
+- [ ] Exercise rapid UI input while Wi-Fi scan/results and sensor updates are
+  active; confirm queue pressure does not freeze rendering or touch callbacks.
 
 ## 3. Backlight and sleep/wake
 
@@ -70,7 +72,11 @@ command console, Wi-Fi, MQTT, and Home Assistant logic.
 - [ ] Single-click the user button to toggle display on/off.
 - [ ] Hold for at least 3 seconds but less than 10 seconds, release, and confirm
   sleep behavior: display off, Wi-Fi stopped, and RP2040 shutdown command sent.
-- [ ] Wake according to current product behavior and confirm the device
+- [ ] Repeat the long press and confirm exactly one shutdown is handled per
+  press; no duplicate Wi-Fi stop or RP2040 shutdown is logged.
+- [ ] If a rejected shutdown can be induced under queue pressure, confirm the
+  display returns on, the device remains awake, and a later release can retry.
+- [ ] Use the current short-press wake path and confirm the device
   restarts cleanly.
 
 The current backlight model clamps active brightness to 1–99 and drives GPIO
@@ -111,6 +117,8 @@ observed frame types with the result.
 - [ ] Reboot and confirm the ESP-IDF-stored Wi-Fi configuration reconnects.
 - [ ] Power-cycle or disable the AP, then restore it; confirm current retry and
   reconnect behavior without a reset loop.
+- [ ] After sleep/wake or a network interruption, confirm Wi-Fi/MQTT recovery
+  while continuous RP2040 sensor input remains visible.
 - [ ] Delete Wi-Fi configuration through the UI and confirm the stored station
   configuration is cleared.
 

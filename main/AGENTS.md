@@ -33,7 +33,8 @@ main/
   indicator_view.c    全局视图初始化（各域 view_init 汇总）
   indicator_enabler.h 功能开关（#include 各域头文件）
   lv_port.c           ⚠️ BSP 硬件边界，见禁区说明
-  view_data.h         事件 ID + 事件数据结构体
+  view_data_types.h   事件 ID + payload 数据结构体（权威定义）
+  view_event/         跨域事件 deep module；公开 seam 为 view_event.h
   home_assistant_config.h  HA MQTT topic 配置
   idf_component.yml   ESP Component Manager 依赖声明
 ```
@@ -97,7 +98,8 @@ main/my_page/
 #include "lvgl.h"
 #include "nav.h"
 #include "lv_port.h"
-#include "view_data.h"
+#include "view_data_types.h"
+#include "view_event.h"
 #include "esp_log.h"
 
 static const char *TAG = "my_page_view";
@@ -113,8 +115,7 @@ void my_page_view_init(void) {
     lv_port_sem_give();
 
     // 注册事件监听（如需响应域间事件）
-    // esp_event_handler_instance_register_with(
-    //     view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_XXX, cb, NULL, NULL);
+    // view_event_subscribe(VIEW_EVENT_XXX, cb, NULL);
 }
 ```
 
@@ -151,21 +152,21 @@ lv_obj_add_flag(overlay, LV_OBJ_FLAG_HIDDEN);   // 初始隐藏
 
 ## 域间通信规则
 
-**唯一合法的跨域通信方式**：`view_event_handle`（`VIEW_EVENT_BASE`）。
+**唯一合法的 `VIEW_EVENT_*` 跨域通信 seam**：`view_event.h`。
 
 ```c
-// 发送事件
+// 发送可合并状态
 struct view_data_sensor_data data = { .sensor_type = SHT41_SENSOR_TEMP, .value = 25.3f };
-esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
-                  VIEW_EVENT_SENSOR_DATA, &data, sizeof(data), 0);
+view_event_delivery_t result =
+    view_event_publish_state(VIEW_EVENT_SENSOR_DATA, &data, sizeof(data));
 
-// 接收事件（在 view_init 中注册）
-esp_event_handler_instance_register_with(
-    view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA,
-    my_handler, NULL, NULL);
+// 接收事件（在 view_init/model_init 中注册）
+view_event_subscribe(VIEW_EVENT_SENSOR_DATA, my_handler, NULL);
 ```
 
-所有事件 ID 和数据结构在 `main/view_data.h` 定义。
+所有事件 ID 和 payload 数据结构以 `main/view_data_types.h` 为权威位置。
+调用方不得 include 私有 adapter，也不得自行选择 FreeRTOS queue、ESP
+event loop 或 timeout。启动顺序在 LVGL 初始化后调用 `view_event_init()`。
 
 ---
 

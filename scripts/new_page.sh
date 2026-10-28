@@ -60,7 +60,8 @@ cat > "$C" <<EOF
 #include "lvgl.h"
 #include "nav.h"
 #include "lv_port.h"
-#include "view_data.h"
+#include "view_data_types.h"
+#include "view_event.h"
 #include "esp_log.h"
 
 static const char *TAG = "${SNAKE}_view";
@@ -84,9 +85,7 @@ void ${SNAKE}_view_init(void) {
     lv_port_sem_give();
 
     /* register event listeners here if needed:
-    esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_XXX,
-        _on_xxx, NULL, NULL);
+    view_event_subscribe(VIEW_EVENT_XXX, _on_xxx, NULL);
     */
     ESP_LOGI(TAG, "init done");
 }
@@ -98,7 +97,7 @@ cat > "$C" <<EOF
 #include <string.h>
 #include "lvgl.h"
 #include "lv_port.h"
-#include "view_data.h"
+#include "view_data_types.h"
 #include "esp_log.h"
 
 static const char *TAG = "${SNAKE}_view";

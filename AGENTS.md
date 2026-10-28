@@ -28,7 +28,7 @@ Start at `main/main.c`:
 
 1. `bsp_board_init()`
 2. `lv_port_init()`
-3. create `view_event_handle`
+3. `view_event_init()`
 4. `indicator_view_init()`
 5. `indicator_model_init()`
 
@@ -40,7 +40,8 @@ View initialization creates the nav tileview and domain view/screen components. 
 | --- | --- |
 | Boot order | `main/main.c` |
 | Runtime module wiring | `main/indicator_model.c`, `main/indicator_view.c` |
-| Shared event ids and payloads | `main/view_data.h` |
+| Shared event ids and payloads | `main/view_data_types.h` |
+| Cross-domain event delivery | `main/view_event/view_event.h` |
 | Navigation and page roots | `main/nav/nav.h`, `main/nav/nav.c` |
 | LVGL image/font assets | `main/assets/` |
 | LVGL port and locking | `main/lv_port.h`, `main/lv_port.c` |
@@ -60,6 +61,8 @@ View initialization creates the nav tileview and domain view/screen components. 
 - View/screen files may call LVGL APIs. Model files should remain UI-free.
 - Model files should not gain new LVGL object ownership.
 - Background tasks and event handlers must update LVGL through the documented LVGL lock/deferral pattern for the current code.
+- Cross-domain `VIEW_EVENT_*` traffic must use `view_event.h`; queue, timeout,
+  retry, coalescing, and transport details belong inside that deep module.
 - MQTT topics and Home Assistant payload compatibility are product behavior.
 - Keep runtime refactors incremental; this project should remain buildable after each patch.
 

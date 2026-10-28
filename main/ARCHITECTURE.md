@@ -12,8 +12,8 @@ main/
   indicator_model.c       Model init orchestrator for storage, button, display, RP2040, sensor, command, Wi-Fi, MQTT, and HA.
   indicator_view.c        View init orchestrator. Creates nav tileview, then domain views/components.
   indicator_enabler.h     Aggregates all module headers; define-guards drive conditional init.
-  view_data.h             Shared event bus contract and VIEW_EVENT_* definitions.
-  view_data_types.h       Pure data types used by the event contract.
+  view_data.h             Transitional forwarding header; do not use in new code.
+  view_data_types.h       Authoritative VIEW_EVENT_* ids and payload data types.
   view_event/             Deep delivery module: semantic interface, policy, stats, and ESP Event adapter.
   lv_port.c               LVGL display/touch port. Owns lv_port_sem_take/give for LVGL thread safety.
 
@@ -91,8 +91,8 @@ must not include the adapter header or call the view transport directly.
 
 | Semantic category | Queue policy | Full/error outcome | Observable counters |
 | --- | --- | --- | --- |
-| Critical command | Fixed module-owned 20 ms bounded enqueue | `VIEW_EVENT_DELIVERY_REJECTED`, centralized error log | enqueued, rejected, dispatched |
-| Replaceable state | Zero-wait enqueue; latest value coalesces by event/key | `VIEW_EVENT_DELIVERY_DROPPED`, centralized error log | enqueued, coalesced, dropped, dispatched |
+| Critical command | Three fixed 5 ms adapter attempts; 15 ms maximum transport wait | `VIEW_EVENT_DELIVERY_REJECTED`, centralized error log; caller must not advance local state | enqueued, retries, rejected, dispatched |
+| Replaceable state | Zero-wait synchronization and queue token; latest value coalesces by event/key | `VIEW_EVENT_DELIVERY_DROPPED`, centralized error log | enqueued, coalesced, dropped, dispatched, synchronization busy |
 
 Sensor state is keyed by sensor type, and Home Assistant sensor state by entity
 index. Other state events keep one latest value per event. Payloads are copied
@@ -174,7 +174,7 @@ Before modifying a module, check its blast radius:
 
 | File/area | Blast radius |
 |-----------|-------------|
-| `view_data.h`, `view_data_types.h`, `view_event/` | Cross-domain event contract and delivery policy |
+| `view_data_types.h`, `view_event/` | Cross-domain event contract and delivery policy |
 | `indicator_model.c`, `indicator_view.c` | Boot/init ordering |
 | `lv_port.c`, `components/bsp/` | Display/touch hardware behavior |
 | `nav/nav.c` | Main page container ownership |
@@ -189,9 +189,14 @@ python3 scripts/test_ha_switch_protocol.py   # for HA/MQTT protocol changes
 ```
 
 Adding a new event: add it to `view_data_types.h` before `VIEW_EVENT_ALL`, add
-its category/payload/key validation in `view_event.c`, and update the stability
+its category/payload/key descriptor in `view_event.c`, and update the stability
 manifest. `scripts/architecture_scan.py` rejects the legacy transport symbols,
 external use of the private adapter, and ESP Event transport calls outside the
 production adapter.
+
+The Wi-Fi domain owns `wifi_scan_worker`: the view-event handler only submits
+a latest-value request and returns. Its queue-length-one production adapter
+runs the synchronous ESP-IDF scan on a Wi-Fi-owned task, so the view-event
+delivery task never scans or self-posts a result while handling a request.
 
 Adding a new page: add a tile in `nav/nav.h`, include the owning directory in `main/CMakeLists.txt`, build widgets in that domain's view/screen file, and call the view init function from `indicator_view.c`.
