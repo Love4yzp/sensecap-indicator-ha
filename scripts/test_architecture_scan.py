@@ -73,6 +73,33 @@ esp_event_post_to(
                 rules = self.scan("main/sensor/example.c", include)
                 self.assertEqual(rules, ["view-event-private-adapter"])
 
+    def test_view_event_private_include_ignores_non_code_and_keeps_line_numbers(
+        self,
+    ) -> None:
+        non_code = """\
+// #include "view_event_adapter.h"
+/* #include "../view_event/view_event_adapter.h" */
+const char *example = "#include \\"view_event/view_event_adapter.h\\"";
+"""
+        self.assertNotIn(
+            "view-event-private-adapter",
+            self.scan("main/sensor/example.c", non_code),
+        )
+
+        source = """\
+// #include "view_event_adapter.h"
+const char *example = "#include \\"view_event_adapter.h\\"";
+
+#include "../view_event/view_event_adapter.h"
+"""
+        findings = [
+            finding
+            for finding in self.scan_findings("main/sensor/example.c", source)
+            if finding.rule == "view-event-private-adapter"
+        ]
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].line, 4)
+
     def test_rejects_ignored_command_delivery_result(self) -> None:
         for source in (
             "view_event_post_command(VIEW_EVENT_WIFI_LIST_REQ, NULL, 0);\n",

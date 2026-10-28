@@ -200,6 +200,22 @@ def mask_c_non_code(text: str) -> str:
     return "".join(result)
 
 
+def private_include_lines(
+    text: str, code_text: str, include_re: re.Pattern[str]
+) -> list[int]:
+    """Find real include directives while preserving original source lines."""
+    lines = []
+    for line, (source_line, masked_line) in enumerate(
+        zip(text.splitlines(), code_text.splitlines()), start=1
+    ):
+        if (
+            C_INCLUDE_DIRECTIVE_RE.match(masked_line)
+            and include_re.search(source_line)
+        ):
+            lines.append(line)
+    return lines
+
+
 def rel_key(path: Path) -> str:
     return path.relative_to(ROOT).as_posix()
 
@@ -447,30 +463,28 @@ def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None
     }
 
     if not rel.startswith("main/view_event/"):
-        for match in VIEW_EVENT_PRIVATE_INCLUDE_RE.finditer(text):
+        for line in private_include_lines(
+            text, code_text, VIEW_EVENT_PRIVATE_INCLUDE_RE
+        ):
             add_finding(
                 findings,
                 path,
-                line_number(text, match.start()),
+                line,
                 "view-event-private-adapter",
                 "runtime code must use view_event.h, not the private adapter seam",
             )
 
     if rel not in wifi_scan_adapter_paths:
-        for line, (source_line, masked_line) in enumerate(
-            zip(text.splitlines(), code_text.splitlines()), start=1
+        for line in private_include_lines(
+            text, code_text, WIFI_SCAN_PRIVATE_INCLUDE_RE
         ):
-            if (
-                C_INCLUDE_DIRECTIVE_RE.match(masked_line)
-                and WIFI_SCAN_PRIVATE_INCLUDE_RE.search(source_line)
-            ):
-                add_finding(
-                    findings,
-                    path,
-                    line,
-                    "wifi-scan-private-adapter",
-                    "runtime code must use wifi_scan_worker.h, not its private adapter seam",
-                )
+            add_finding(
+                findings,
+                path,
+                line,
+                "wifi-scan-private-adapter",
+                "runtime code must use wifi_scan_worker.h, not its private adapter seam",
+            )
 
     for match in VIEW_EVENT_LEGACY_TRANSPORT_RE.finditer(code_text):
         add_finding(
