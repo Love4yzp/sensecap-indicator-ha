@@ -1,6 +1,7 @@
 #include "mqtt.h"
 #include "esp_log.h"
 #include "esp_wifi.h"
+#include "view_event.h"
 
 static const char *TAG = "INDICATOR_MQTT";
 
@@ -13,7 +14,8 @@ bool get_mqtt_net_flag(void) {
     return mqtt_net_flag;
 }
 
-static void _wifi_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data) {
+static void _wifi_event_handler(
+    void *handler_args, enum view_event_id id, const void *event_data) {
     switch (id) {
         case VIEW_EVENT_WIFI_ST: {
             struct view_data_wifi_st *p_st = (struct view_data_wifi_st *)event_data;
@@ -22,8 +24,7 @@ static void _wifi_event_handler(void *handler_args, esp_event_base_t base, int32
                      p_st->is_network, mqtt_net_flag);
             break;
         }
-        case WIFI_EVENT_STA_DISCONNECTED:
-            mqtt_net_flag = false;
+        default:
             break;
     }
 }
@@ -84,12 +85,8 @@ int indicator_mqtt_init(void) {
     };
     ESP_ERROR_CHECK(esp_event_loop_create(&mqtt_event_task_args, &mqtt_app_event_handle));
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
-        _wifi_event_handler, NULL, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-        view_event_handle, WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED,
-        _wifi_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_WIFI_ST, _wifi_event_handler, NULL) ? ESP_OK : ESP_FAIL);
     ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
         mqtt_app_event_handle, MQTT_APP_EVENT_BASE, ESP_EVENT_ANY_ID,
         _app_event_handler, NULL, NULL));

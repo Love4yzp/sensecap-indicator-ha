@@ -5,6 +5,7 @@
 #include "lv_port.h"
 #include "nav.h"
 #include "view_data.h"
+#include "view_event.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -39,6 +40,10 @@ static const char *TAG = "ha-switch-screen";
 
 typedef void (*widget_update_fn)(lv_obj_t *widget, int value, void *aux);
 
+static void _update_toggle(lv_obj_t *w, int value, void *aux);
+static void _update_arc(lv_obj_t *w, int value, void *aux);
+static void _update_slider(lv_obj_t *w, int value, void *aux);
+
 typedef struct {
     int index;
     lv_obj_t *widget;
@@ -47,6 +52,8 @@ typedef struct {
     const lv_image_dsc_t *icon_off;
     void *aux;
     widget_update_fn update;
+    int accepted_value;
+    bool suppress_post;
 } switch_slot_t;
 
 struct ha_switch_screen {
@@ -104,7 +111,7 @@ static const sensor_card_spec_t mix_sensor_cards[] = {
     },
 };
 
-static void _post_switch_value(int index, int value)
+static bool _post_switch_value(int index, int value)
 {
     struct view_data_ha_switch_data switch_data = {
         .index = index,
@@ -112,11 +119,13 @@ static void _post_switch_value(int index, int value)
     };
 
     ESP_LOGI(TAG, "switch%d: %d", index + 1, value);
-    esp_err_t err = esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SWITCH_ST,
-                                      &switch_data, sizeof(switch_data), portMAX_DELAY);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "failed to post switch event: %s", esp_err_to_name(err));
+    view_event_delivery_t result = view_event_post_command(
+        VIEW_EVENT_HA_SWITCH_ST, &switch_data, sizeof(switch_data));
+    if (result != VIEW_EVENT_DELIVERY_ENQUEUED) {
+        ESP_LOGE(TAG, "failed to post switch event: delivery=%d", (int)result);
+        return false;
     }
+    return true;
 }
 
 static void _set_toggle_icon(switch_slot_t *slot, bool checked)
@@ -126,6 +135,18 @@ static void _set_toggle_icon(switch_slot_t *slot, bool checked)
     }
 
     lv_image_set_src(slot->icon, checked ? slot->icon_on : slot->icon_off);
+}
+
+static void _apply_slot_value(switch_slot_t *slot, int value)
+{
+    slot->suppress_post = true;
+    slot->update(slot->widget, value, slot->aux);
+    slot->suppress_post = false;
+}
+
+static void _restore_slot_value(switch_slot_t *slot)
+{
+    _apply_slot_value(slot, slot->accepted_value);
 }
 
 static void _switch_toggle_event_cb(lv_event_t *e)
@@ -141,7 +162,15 @@ static void _switch_toggle_event_cb(lv_event_t *e)
 
     bool checked = lv_obj_has_state(slot->widget, LV_STATE_CHECKED);
     _set_toggle_icon(slot, checked);
-    _post_switch_value(slot->index, checked ? 1 : 0);
+    int value = checked ? 1 : 0;
+    if (slot->suppress_post) {
+        return;
+    }
+    if (_post_switch_value(slot->index, value)) {
+        slot->accepted_value = value;
+    } else {
+        _restore_slot_value(slot);
+    }
 }
 
 static void _arc_event_cb(lv_event_t *e)
@@ -161,7 +190,14 @@ static void _arc_event_cb(lv_event_t *e)
         lv_snprintf(buf, sizeof(buf), "%d °C", value);
         lv_label_set_text((lv_obj_t *)slot->aux, buf);
     }
-    _post_switch_value(slot->index, value);
+    if (slot->suppress_post) {
+        return;
+    }
+    if (_post_switch_value(slot->index, value)) {
+        slot->accepted_value = value;
+    } else {
+        _restore_slot_value(slot);
+    }
 }
 
 static void _slider_event_cb(lv_event_t *e)
@@ -175,7 +211,15 @@ static void _slider_event_cb(lv_event_t *e)
         return;
     }
 
-    _post_switch_value(slot->index, lv_slider_get_value(slot->widget));
+    int value = lv_slider_get_value(slot->widget);
+    if (slot->suppress_post) {
+        return;
+    }
+    if (_post_switch_value(slot->index, value)) {
+        slot->accepted_value = value;
+    } else {
+        _restore_slot_value(slot);
+    }
 }
 
 static void _update_toggle(lv_obj_t *w, int value, void *aux)
@@ -319,6 +363,7 @@ static lv_obj_t *_create_large_toggle(lv_obj_t *tile, switch_slot_t *slot, int32
     slot->icon_on = icon_on;
     slot->icon_off = icon_off;
     slot->update = _update_toggle;
+    slot->accepted_value = 0;
     lv_obj_add_event_cb(btn, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return btn;
 }
@@ -343,6 +388,7 @@ static lv_obj_t *_create_row_toggle(lv_obj_t *tile, switch_slot_t *slot, int32_t
     slot->icon_on = icon_on;
     slot->icon_off = icon_off;
     slot->update = _update_toggle;
+    slot->accepted_value = 0;
     lv_obj_add_event_cb(btn, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return btn;
 }
@@ -373,6 +419,7 @@ static lv_obj_t *_create_embedded_switch(lv_obj_t *tile, switch_slot_t *slot, in
 
     slot->widget = toggle;
     slot->update = _update_toggle;
+    slot->accepted_value = 1;
     lv_obj_add_event_cb(toggle, _switch_toggle_event_cb, LV_EVENT_VALUE_CHANGED, slot);
     return toggle;
 }
@@ -416,6 +463,7 @@ static void _create_arc_card(lv_obj_t *tile, switch_slot_t *slot)
     slot->widget = arc;
     slot->aux = data;
     slot->update = _update_arc;
+    slot->accepted_value = 70;
     lv_obj_add_event_cb(arc, _arc_event_cb, LV_EVENT_VALUE_CHANGED, slot);
 }
 
@@ -446,6 +494,7 @@ static void _create_slider_card(lv_obj_t *tile, switch_slot_t *slot)
 
     slot->widget = slider;
     slot->update = _update_slider;
+    slot->accepted_value = 80;
     lv_obj_add_event_cb(slider, _slider_event_cb, LV_EVENT_VALUE_CHANGED, slot);
 }
 
@@ -526,7 +575,8 @@ void ha_switch_screen_update(ha_switch_screen_t *s, int index, int value)
     }
 
     ESP_LOGI(TAG, "update index:%d value:%d", index, value);
-    slot->update(slot->widget, value, slot->aux);
+    slot->accepted_value = value;
+    _apply_slot_value(slot, value);
 }
 
 void ha_switch_screen_destroy(ha_switch_screen_t *s)

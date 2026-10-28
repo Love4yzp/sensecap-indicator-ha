@@ -41,11 +41,20 @@ struct view_data_wifi_item {
     int8_t  rssi;
 };
 
+struct view_data_wifi_scan_request {
+    uint32_t scan_generation;
+};
+
 struct view_data_wifi_list {
+    uint32_t                  scan_generation;
     bool                      is_connect;
     struct view_data_wifi_item connect;
     uint16_t                  cnt;
     struct view_data_wifi_item aps[WIFI_SCAN_LIST_SIZE];
+};
+
+struct view_data_wifi_scan_failure {
+    uint32_t scan_generation;
 };
 
 struct view_data_wifi_connet_ret_msg {
@@ -128,95 +137,52 @@ struct view_data_ha_switch_data {
     int     value;
 };
 
-/* ── Event IDs (VIEW_EVENT_BASE) ─────────────────────────────────────────── */
+/* ── View-event interface contract ───────────────────────────────────────── */
 
 /*
- * Event manifest for view_event_handle (VIEW_EVENT_BASE).
+ * Event manifest for the view_event module interface.
  *
  * Each entry documents:
  *   P  — producer(s)
  *   C  — consumer(s)
  *   Payload — data type posted with the event (NULL = no data)
- *   LVGL    — "lock required" = consumer must hold lv_port semaphore
+ *   Policy  — command = bounded delivery with explicit rejection;
+ *             state = nonblocking latest-value delivery with coalescing
  *
- * Bus: view_event_handle (main.c). Other buses: mqtt_app_event_handle,
- * ha_cfg_event_handle, cmd_cfg_event_handle.
+ * Full producer/consumer and delivery-policy details live in
+ * docs/stability/milestone-1-event-reliability.md.
  */
-enum {
-    /* P: wifi/wifi_model.c  C: wifi/wifi_view.c  Payload: uint8_t (enum start_screen) */
-    VIEW_EVENT_SCREEN_START = 0,
-
-    /* P: display/display_model.c  C: display/display_view.c  Payload: bool */
-    VIEW_EVENT_TIME,
-
-    /* P: wifi/wifi_model.c  C: mqtt/mqtt.c, wifi/wifi_view.c, ha/ha_mqtt.c */
-    VIEW_EVENT_WIFI_ST,             /* struct view_data_wifi_st */
-
-    /* P/C: TODO  Payload: char city[32] */
-    VIEW_EVENT_CITY,
-
-    /* P: rp2040/rp2040.c  C: sensor/sensor_view.c, ha/ha_sensor.c */
-    VIEW_EVENT_SENSOR_DATA,         /* struct view_data_sensor_data */
-
-    /* Trigger-only events (NULL payload) */
-    VIEW_EVENT_SENSOR_TEMP_HISTORY,
-    VIEW_EVENT_SENSOR_HUMIDITY_HISTORY,
-    VIEW_EVENT_SENSOR_TVOC_HISTORY,
-    VIEW_EVENT_SENSOR_CO2_HISTORY,
-
-    /* P/C: TODO  Payload: struct view_data_sensor_history_data */
-    VIEW_EVENT_SENSOR_DATA_HISTORY,
-
-    /* P: wifi/wifi_model.c  C: wifi/wifi_view.c  Payload: struct view_data_wifi_list */
-    VIEW_EVENT_WIFI_LIST,
-
-    VIEW_EVENT_WIFI_LIST_START,     /* NULL — scan started */
-    VIEW_EVENT_WIFI_LIST_REQ,       /* NULL — user requests scan */
-
-    /* P: wifi/wifi_view.c  C: wifi/wifi_model.c  Payload: struct view_data_wifi_config */
-    VIEW_EVENT_WIFI_CONNECT,
-
-    /* P: wifi/wifi_model.c  C: wifi/wifi_view.c  Payload: struct view_data_wifi_connet_ret_msg */
-    VIEW_EVENT_WIFI_CONNECT_RET,
-
-    VIEW_EVENT_WIFI_CFG_DELETE,     /* NULL */
-
-    /* P/C: TODO  Payload: struct view_data_time_cfg */
-    VIEW_EVENT_TIME_CFG_UPDATE,
-    VIEW_EVENT_TIME_CFG_APPLY,
-
-    /* P: display/display_model.c, display/display_view.c  Payload: struct view_data_display */
-    VIEW_EVENT_DISPLAY_CFG,
-
-    VIEW_EVENT_BRIGHTNESS_UPDATE,   /* uint8_t brightness (0–100) */
-
-    /* C: display/display_model.c  Payload: struct view_data_display */
-    VIEW_EVENT_DISPLAY_CFG_APPLY,
-
-    /* P: btn/btn.c  C: wifi/wifi_model.c, rp2040/rp2040.c  Payload: NULL */
-    VIEW_EVENT_SHUTDOWN,
-
-    /* C: wifi/wifi_model.c  Payload: NULL */
-    VIEW_EVENT_FACTORY_RESET,
-
-    /* P: btn/btn.c, display/display_model.c  Payload: bool (0=off, 1=on) */
-    VIEW_EVENT_SCREEN_CTRL,
-
-    /* P: ha/ha_config.c  C: ha/ha_config.c  Payload: NULL (reads textarea directly) */
-    VIEW_EVENT_MQTT_ADDR_CHANGED,
-
-    /* P: ha/ha_mqtt.c  C: ha/ha_config.c  Payload: NULL */
-    VIEW_EVENT_HA_ADDR_DISPLAY,
-
-    /* P: ha/ha_sensor.c  C: *** NO CONSUMER — not yet wired up ***
-     * Payload: struct view_data_ha_sensor_data */
-    VIEW_EVENT_HA_SENSOR,
-
-    /* P: ha/ha_switch_screen.c  C: ha/ha_switch.c  Payload: struct view_data_ha_switch_data */
-    VIEW_EVENT_HA_SWITCH_ST,
-
-    /* P: ha/ha_switch.c  C: ha/ha_switch.c (internal loop)  Payload: struct view_data_ha_switch_data */
-    VIEW_EVENT_HA_SWITCH_SET,
+enum view_event_id {
+    VIEW_EVENT_SCREEN_START = 0,        // uint8_t enum start_screen; command
+    VIEW_EVENT_TIME,                    // bool; state
+    VIEW_EVENT_WIFI_ST,                 // struct view_data_wifi_st; state
+    VIEW_EVENT_CITY,                    // char[32]; state
+    VIEW_EVENT_SENSOR_DATA,             // struct view_data_sensor_data; keyed state
+    VIEW_EVENT_SENSOR_TEMP_HISTORY,     // NULL trigger; state
+    VIEW_EVENT_SENSOR_HUMIDITY_HISTORY, // NULL trigger; state
+    VIEW_EVENT_SENSOR_TVOC_HISTORY,     // NULL trigger; state
+    VIEW_EVENT_SENSOR_CO2_HISTORY,      // NULL trigger; state
+    VIEW_EVENT_SENSOR_DATA_HISTORY,     // struct view_data_sensor_history_data; state
+    VIEW_EVENT_WIFI_LIST,               // struct view_data_wifi_list with scan generation; command result
+    VIEW_EVENT_WIFI_LIST_FAILED,        // struct view_data_wifi_scan_failure; command result
+    VIEW_EVENT_WIFI_LIST_START,         // NULL; command notification
+    VIEW_EVENT_WIFI_LIST_REQ,           // struct view_data_wifi_scan_request; command
+    VIEW_EVENT_WIFI_CONNECT,            // struct view_data_wifi_config; command
+    VIEW_EVENT_WIFI_CONNECT_RET,        // struct view_data_wifi_connet_ret_msg; command result
+    VIEW_EVENT_WIFI_CFG_DELETE,         // NULL; command
+    VIEW_EVENT_TIME_CFG_UPDATE,         // struct view_data_time_cfg; command
+    VIEW_EVENT_TIME_CFG_APPLY,          // struct view_data_time_cfg; command
+    VIEW_EVENT_DISPLAY_CFG,             // struct view_data_display; state
+    VIEW_EVENT_BRIGHTNESS_UPDATE,       // int32_t brightness (0-100); state
+    VIEW_EVENT_DISPLAY_CFG_APPLY,       // struct view_data_display; command
+    VIEW_EVENT_SHUTDOWN,                // NULL; command
+    VIEW_EVENT_FACTORY_RESET,           // NULL; command
+    VIEW_EVENT_SCREEN_CTRL,             // bool (false=off, true=on); state
+    VIEW_EVENT_MQTT_ADDR_CHANGED,       // NULL; command
+    VIEW_EVENT_HA_ADDR_DISPLAY,         // NULL refresh notification; state
+    VIEW_EVENT_HA_SENSOR,               // struct view_data_ha_sensor_data; keyed state
+    VIEW_EVENT_HA_SWITCH_ST,             // struct view_data_ha_switch_data; command
+    VIEW_EVENT_HA_SWITCH_SET,            // struct view_data_ha_switch_data; command
 
     VIEW_EVENT_ALL,
 };

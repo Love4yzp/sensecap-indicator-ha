@@ -2,6 +2,7 @@
 #include <string.h>
 #include "wifi_connect_screen.h"
 #include "view_data.h"
+#include "view_event.h"
 #include "esp_log.h"
 
 /* Re-declare only what this component needs from the asset set. */
@@ -60,10 +61,13 @@ static void _on_join(lv_event_t *e) {
         cfg.have_password = false;
     }
 
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT,
-                      &cfg, sizeof(cfg), portMAX_DELAY);
-
-    _dismiss(s);
+    view_event_delivery_t delivery =
+        view_event_post_command(VIEW_EVENT_WIFI_CONNECT, &cfg, sizeof(cfg));
+    if(delivery == VIEW_EVENT_DELIVERY_ENQUEUED) {
+        _dismiss(s);
+    } else {
+        ESP_LOGE(TAG, "join rejected: delivery=%d", (int)delivery);
+    }
 }
 
 static void _on_password_changed(lv_event_t *e) {
@@ -100,10 +104,12 @@ static void _on_delete(lv_event_t *e) {
     wifi_connect_screen_t *s = (wifi_connect_screen_t *)lv_event_get_user_data(e);
     if(lv_event_get_code(e) != LV_EVENT_CLICKED) return;
 
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CFG_DELETE,
-                      NULL, 0, portMAX_DELAY);
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST_REQ,
-                      NULL, 0, portMAX_DELAY);
+    view_event_delivery_t delivery =
+        view_event_post_command(VIEW_EVENT_WIFI_CFG_DELETE, NULL, 0);
+    if(delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+        ESP_LOGE(TAG, "delete rejected: delivery=%d", (int)delivery);
+        return;
+    }
 
     _dismiss(s);
 }

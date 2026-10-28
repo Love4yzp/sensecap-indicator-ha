@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "esp_err.h"
 #include "esp_log.h"
 #include <string.h>
 
@@ -8,6 +9,7 @@
 #include "home_assistant_config.h"
 #include "lv_port.h"
 #include "view_data.h"
+#include "view_event.h"
 
 // #define VIEW_DEBUG
 #define BUF_SIZE 32
@@ -158,8 +160,8 @@ static void sensor_view_create_card(lv_obj_t* tile, SensorCardSpec* spec) {
  * @brief Get the data from RP2040
  * @attention called in indicator_view.c
  */
-void view_event_update_present_sensorData(void* handler_args, esp_event_base_t base, int32_t id,
-										  void* event_data) {
+void view_event_update_present_sensorData(
+	void* handler_args, enum view_event_id id, const void* event_data) {
 	if(id != VIEW_EVENT_SENSOR_DATA)
 		return;
 	// ESP_LOGI(TAG, "event: VIEW_EVENT_SENSOR_DATA");
@@ -234,7 +236,8 @@ void view_sensor_init() {
 	}
 	lv_port_sem_give();
 
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(
-		view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA,
-		view_event_update_present_sensorData, NULL, NULL));
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_SENSOR_DATA,
+		view_event_update_present_sensorData,
+		NULL) ? ESP_OK : ESP_FAIL);
 }

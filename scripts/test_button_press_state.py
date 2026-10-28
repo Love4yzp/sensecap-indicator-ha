@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+"""Host tests for idempotent long-press sleep/shutdown transitions."""
+
+from __future__ import annotations
+
+import subprocess
+import tempfile
+import textwrap
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+HARNESS = r"""
+#include <assert.h>
+#include <stdbool.h>
+
+#include "button_press_state.h"
+
+static void hold_and_count(
+    unsigned count,
+    bool sleeping,
+    unsigned action_counts[BUTTON_PRESS_ACTION_SHUTDOWN + 1])
+{
+    for (unsigned i = 0; i < count; i++) {
+        button_press_action_t action = button_press_hold(100, sleeping);
+        assert(action <= BUTTON_PRESS_ACTION_SHUTDOWN);
+        action_counts[action]++;
+    }
+}
+
+int main(void)
+{
+    unsigned action_counts[BUTTON_PRESS_ACTION_SHUTDOWN + 1] = {0};
+
+    button_press_begin();
+    hold_and_count(16, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_PREPARE_SLEEP] == 1);
+    assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
+    /* Rejection leaves shutdown pending and safe to retry. */
+    assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
+    button_press_shutdown_accepted();
+    assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
+
+    button_press_begin();
+    hold_and_count(16, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_PREPARE_SLEEP] == 2);
+    assert(button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN);
+    button_press_shutdown_accepted();
+
+    button_press_begin();
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 1);
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 1);
+    assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
+    assert(button_press_release() == BUTTON_PRESS_ACTION_NONE);
+
+    button_press_begin();
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 2);
+    hold_and_count(200, false, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_FACTORY_RESET] == 2);
+
+    button_press_begin();
+    hold_and_count(16, true, action_counts);
+    assert(action_counts[BUTTON_PRESS_ACTION_RESTART] == 1);
+    assert(button_press_hold(100, true) == BUTTON_PRESS_ACTION_NONE);
+
+    return 0;
+}
+"""
+
+
+class ButtonPressStateTests(unittest.TestCase):
+    def test_shutdown_retries_until_accepted_and_factory_reset_once_per_press(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            binary = Path(tmp) / "button_press_state_test"
+            harness = Path(tmp) / "button_press_state_test.c"
+            harness.write_text(textwrap.dedent(HARNESS), encoding="utf-8")
+
+            subprocess.run(
+                [
+                    "cc",
+                    "-std=c11",
+                    "-Wall",
+                    "-Wextra",
+                    "-Werror",
+                    "-I",
+                    str(ROOT / "main" / "btn"),
+                    str(harness),
+                    str(ROOT / "main" / "btn" / "button_press_state.c"),
+                    "-o",
+                    str(binary),
+                ],
+                cwd=ROOT,
+                check=True,
+            )
+            subprocess.run([str(binary)], cwd=ROOT, check=True, timeout=2)
+
+    def test_factory_reset_notification_cannot_gate_local_reset(self) -> None:
+        source = (ROOT / "main" / "btn" / "btn.c").read_text(encoding="utf-8")
+        factory_case = source.split(
+            "case BUTTON_PRESS_ACTION_FACTORY_RESET:", 1
+        )[1].split("case BUTTON_PRESS_ACTION_NONE:", 1)[0]
+        rejected = factory_case.split(
+            "if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED)", 1
+        )[1].split("}", 1)[0]
+        self.assertNotIn("break;", rejected)
+        rejected_end = factory_case.index("}", factory_case.index(
+            "if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED)"
+        ))
+        display_state = factory_case.index(
+            "view_event_publish_state(VIEW_EVENT_SCREEN_CTRL"
+        )
+        display_on = factory_case.index("indicator_display_on()")
+        timer_create = factory_case.index("esp_timer_create(")
+        timer_start = factory_case.index("esp_timer_start_once(")
+        self.assertEqual(factory_case.count("esp_timer_create("), 1)
+        self.assertEqual(factory_case.count("esp_timer_start_once("), 1)
+        self.assertLess(rejected_end, display_state)
+        self.assertLess(display_state, display_on)
+        self.assertLess(display_on, timer_create)
+        self.assertLess(timer_create, timer_start)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

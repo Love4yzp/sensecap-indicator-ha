@@ -1,14 +1,14 @@
 #include "btn.h"
+#include "button_press_state.h"
 #include "bsp_board.h"
 #include "bsp_btn.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include "view_event.h"
 #include <nvs.h>
 #include <nvs_flash.h>
 
-static uint32_t hold_cnt = 0;
 static bool sleep_flag = false;
-static bool sleep_start_flag = false;
 
 static esp_timer_handle_t factory_reset_timer_handle;
 
@@ -46,13 +46,11 @@ static void _btn_click_callback(void *arg) {
         ESP_LOGI(TAG, "click, off");
         indicator_display_off();
         st = 0;
-        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_CTRL, &st,
-                          sizeof(st), portMAX_DELAY);
+        view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
     } else {
         ESP_LOGI(TAG, "click, on");
         st = 1;
-        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_CTRL, &st,
-                          sizeof(st), portMAX_DELAY);
+        view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
         indicator_display_on();
     }
 }
@@ -63,53 +61,73 @@ static void _btn_double_click_callback(void *arg) {
 
 static void _btn_press_start_callback(void *arg) {
     ESP_LOGI(TAG, "press start");
-    hold_cnt = 1500;
-    sleep_start_flag = false;
+    button_press_begin();
 }
 
 static void _btn_long_press_hold_callback(void *arg) {
-    static bool factory_reset_flag = false;
-    hold_cnt += CONFIG_BUTTON_PERIOD_TIME_MS;
+    button_press_action_t action =
+        button_press_hold(CONFIG_BUTTON_PERIOD_TIME_MS, sleep_flag);
 
-    if (hold_cnt >= 3000 && hold_cnt < 10000) {
-        if (sleep_flag) {
+    switch (action) {
+        case BUTTON_PRESS_ACTION_RESTART:
             ESP_LOGI(TAG, "wake, restart");
             fflush(stdout);
             esp_restart();
-        } else if (!sleep_start_flag) {
-            sleep_start_flag = true;
+            break;
+        case BUTTON_PRESS_ACTION_PREPARE_SLEEP: {
             ESP_LOGI(TAG, "long_press: entry sleep mode");
             indicator_display_off();
             bool st = 0;
-            esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_CTRL, &st,
-                              sizeof(st), portMAX_DELAY);
+            view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
+            break;
         }
-    } else if (hold_cnt >= 10000 && !factory_reset_flag) {
-        ESP_LOGI(TAG, "factory reset");
-        factory_reset_flag = true;
-        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_FACTORY_RESET, NULL, 0,
-                          portMAX_DELAY);
-        bool st = 1;
-        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SCREEN_CTRL, &st,
-                          sizeof(st), portMAX_DELAY);
-        indicator_display_on();
+        case BUTTON_PRESS_ACTION_FACTORY_RESET: {
+            ESP_LOGI(TAG, "factory reset");
+            view_event_delivery_t delivery =
+                view_event_post_command(VIEW_EVENT_FACTORY_RESET, NULL, 0);
+            if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
+                ESP_LOGE(
+                    TAG,
+                    "factory reset command rejected: delivery=%d",
+                    (int)delivery);
+            }
+            bool st = 1;
+            view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
+            indicator_display_on();
 
-        const esp_timer_create_args_t timer_args = {
-            .callback = &_factory_reset_callback,
-            .arg = (void *)factory_reset_timer_handle,
-            .name = "factory_reset"
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&timer_args, &factory_reset_timer_handle));
-        ESP_ERROR_CHECK(esp_timer_start_once(factory_reset_timer_handle, 1000000 * 3));
+            const esp_timer_create_args_t timer_args = {
+                .callback = &_factory_reset_callback,
+                .arg = (void *)factory_reset_timer_handle,
+                .name = "factory_reset"
+            };
+            ESP_ERROR_CHECK(esp_timer_create(&timer_args, &factory_reset_timer_handle));
+            ESP_ERROR_CHECK(esp_timer_start_once(factory_reset_timer_handle, 1000000 * 3));
+            break;
+        }
+        case BUTTON_PRESS_ACTION_NONE:
+        case BUTTON_PRESS_ACTION_SHUTDOWN:
+        default:
+            break;
     }
 }
 
 static void _btn_press_up_callback(void *arg) {
-    if (hold_cnt >= 3000 && hold_cnt < 15000) {
-        ESP_LOGI(TAG, "entry sleep mode");
-        sleep_flag = true;
-        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SHUTDOWN, NULL, 0,
-                          portMAX_DELAY);
+    if (button_press_release() == BUTTON_PRESS_ACTION_SHUTDOWN) {
+        view_event_delivery_t delivery =
+            view_event_post_command(VIEW_EVENT_SHUTDOWN, NULL, 0);
+        if (delivery == VIEW_EVENT_DELIVERY_ENQUEUED) {
+            ESP_LOGI(TAG, "entry sleep mode");
+            button_press_shutdown_accepted();
+            sleep_flag = true;
+        } else {
+            ESP_LOGE(
+                TAG,
+                "shutdown command rejected; staying awake: delivery=%d",
+                (int)delivery);
+            bool st = 1;
+            view_event_publish_state(VIEW_EVENT_SCREEN_CTRL, &st, sizeof(st));
+            indicator_display_on();
+        }
     }
 }
 

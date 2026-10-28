@@ -94,26 +94,7 @@ OCCURRENCE_ALLOWLIST_REASONS: dict[tuple[str, str, str, str], str] = {
 }
 
 
-EVENT_COMMENT_ALLOWLIST_REASONS: dict[str, str] = {
-    "VIEW_EVENT_SENSOR_TEMP_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_SENSOR_HUMIDITY_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_SENSOR_TVOC_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_SENSOR_CO2_HISTORY": (
-        "existing sensor history event has implicit payload handling in current views"
-    ),
-    "VIEW_EVENT_WIFI_CFG_DELETE": (
-        "existing Wi-Fi config delete event has no documented payload in current code"
-    ),
-    "VIEW_EVENT_HA_ADDR_DISPLAY": (
-        "existing Home Assistant address-display event lacks a payload comment"
-    ),
-}
+EVENT_COMMENT_ALLOWLIST_REASONS: dict[str, str] = {}
 
 
 VIEW_FILE_PATTERNS = (
@@ -147,6 +128,92 @@ HA_SWITCH_SCREEN_UI_INCLUDE_RE = re.compile(r"#\s*include\s*[<\"](?:ui/)?(?:ui|u
 HA_SWITCH_SCREEN_GLOBAL_RE = re.compile(r"\bui_switch(?:[0-9]|_btn3)\w*\b")
 BSP_INCLUDE_RE = re.compile(r"#\s*include\s+[<\"](bsp_[^>\"]+)[>\"]")
 SERVICE_CALLBACK_RE = re.compile(r"\b([a-zA-Z0-9_]+_register_(?:cb|callback))\s*\(")
+VIEW_EVENT_PRIVATE_INCLUDE_RE = re.compile(
+    r"#\s*include\s*[<\"][^>\"]*view_event_adapter\.h[>\"]"
+)
+WIFI_SCAN_PRIVATE_INCLUDE_RE = re.compile(
+    r"#\s*include\s*[<\"][^>\"]*wifi_scan_worker_adapter\.h[>\"]"
+)
+C_INCLUDE_DIRECTIVE_RE = re.compile(r"^\s*#\s*include\b")
+VIEW_EVENT_LEGACY_TRANSPORT_RE = re.compile(
+    r"\b(view_event_handle|VIEW_EVENT_BASE)\b"
+)
+VIEW_EVENT_INTERNAL_TRANSPORT_RE = re.compile(r"\bVIEW_EVENT_TRANSPORT_BASE\b")
+ESP_EVENT_TRANSPORT_CALL_RE = re.compile(
+    r"\b(esp_event_post_to|esp_event_handler_instance_register_with)\s*\("
+)
+VIEW_EVENT_COMMAND_CALL_RE = re.compile(r"\bview_event_post_command\s*\(")
+RESULT_ASSIGNMENT_RE = re.compile(r"(?<![=!<>])=(?!=)[\s(]*$")
+
+
+def mask_c_non_code(text: str) -> str:
+    """Mask comments and literals while preserving offsets and line numbers."""
+    result = list(text)
+    state = "code"
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+        next_char = text[index + 1] if index + 1 < len(text) else ""
+
+        if state == "code":
+            if char == "/" and next_char == "/":
+                result[index] = result[index + 1] = " "
+                state = "line_comment"
+                index += 2
+                continue
+            if char == "/" and next_char == "*":
+                result[index] = result[index + 1] = " "
+                state = "block_comment"
+                index += 2
+                continue
+            if char == '"':
+                result[index] = " "
+                state = "string"
+            elif char == "'":
+                result[index] = " "
+                state = "char"
+        elif state == "line_comment":
+            if char == "\n":
+                state = "code"
+            else:
+                result[index] = " "
+        elif state == "block_comment":
+            if char == "*" and next_char == "/":
+                result[index] = result[index + 1] = " "
+                state = "code"
+                index += 2
+                continue
+            if char != "\n":
+                result[index] = " "
+        elif state in {"string", "char"}:
+            result[index] = " " if char != "\n" else "\n"
+            if char == "\\" and next_char:
+                result[index + 1] = " " if next_char != "\n" else "\n"
+                index += 2
+                continue
+            if (state == "string" and char == '"') or (state == "char" and char == "'"):
+                state = "code"
+
+        index += 1
+
+    return "".join(result)
+
+
+def private_include_lines(
+    text: str, code_text: str, include_re: re.Pattern[str]
+) -> list[int]:
+    """Find real include directives while preserving original source lines."""
+    lines = []
+    for line, (source_line, masked_line) in enumerate(
+        zip(text.splitlines(), code_text.splitlines()), start=1
+    ):
+        if (
+            C_INCLUDE_DIRECTIVE_RE.match(masked_line)
+            and include_re.search(source_line)
+        ):
+            lines.append(line)
+    return lines
 
 
 def rel_key(path: Path) -> str:
@@ -190,6 +257,60 @@ def is_model_file(path: Path) -> bool:
 
 def line_number(text: str, offset: int) -> int:
     return text.count("\n", 0, offset) + 1
+
+
+def matching_paren(text: str, open_offset: int) -> int | None:
+    depth = 0
+    for offset in range(open_offset, len(text)):
+        if text[offset] == "(":
+            depth += 1
+        elif text[offset] == ")":
+            depth -= 1
+            if depth == 0:
+                return offset
+    return None
+
+
+def command_result_is_handled(
+    code_text: str, match: re.Match[str]
+) -> bool:
+    statement_start = max(
+        code_text.rfind(delimiter, 0, match.start())
+        for delimiter in (";", "{", "}")
+    ) + 1
+    prefix = code_text[statement_start:match.start()]
+    stripped_prefix = prefix.strip()
+    if stripped_prefix == "return" or stripped_prefix.startswith("return "):
+        return True
+    if RESULT_ASSIGNMENT_RE.search(prefix):
+        return True
+
+    call_open = code_text.find("(", match.start(), match.end())
+    call_close = matching_paren(code_text, call_open)
+    if call_close is None:
+        return False
+
+    for if_match in re.finditer(r"\bif\s*\(", code_text[:match.start()]):
+        condition_open = code_text.find(
+            "(", if_match.start(), if_match.end()
+        )
+        condition_close = matching_paren(code_text, condition_open)
+        if (
+            condition_close is None
+            or not (condition_open < match.start() < call_close < condition_close)
+        ):
+            continue
+        before_call = code_text[condition_open + 1:match.start()]
+        after_call = code_text[call_close + 1:condition_close]
+        return bool(
+            re.search(r"(?:==|!=)\s*$", before_call)
+            or re.match(
+                r"\s*(?:==|!=)\s*VIEW_EVENT_DELIVERY_[A-Z_]+",
+                after_call,
+            )
+        )
+
+    return False
 
 
 def add_finding(findings: list[Finding], path: Path, line: int, rule: str, message: str) -> None:
@@ -261,7 +382,8 @@ def scan_ha_switch_squareline_bindings(path: Path, text: str, findings: list[Fin
 def scan_lvgl_calls(path: Path, text: str, findings: list[Finding]) -> None:
     if is_view_file(path):
         return
-    for match in LVGL_CALL_RE.finditer(text):
+    code_text = mask_c_non_code(text)
+    for match in LVGL_CALL_RE.finditer(code_text):
         symbol = match.group(1)
         add_symbol_finding(
             findings,
@@ -293,7 +415,7 @@ def scan_shared_bsp_includes(path: Path, text: str, findings: list[Finding]) -> 
 
 
 def scan_event_payload_comments(path: Path, text: str, findings: list[Finding]) -> None:
-    if rel_key(path) not in {"main/view_data.h"}:
+    if rel_key(path) != "main/view_data_types.h":
         return
     for idx, line in enumerate(text.splitlines(), start=1):
         match = EVENT_ENUM_RE.match(line)
@@ -330,6 +452,89 @@ def scan_service_callbacks(path: Path, text: str, findings: list[Finding]) -> No
         )
 
 
+def scan_view_event_seam(path: Path, text: str, findings: list[Finding]) -> None:
+    """Keep view-event transport details behind the module's internal adapter."""
+    rel = rel_key(path)
+    code_text = mask_c_non_code(text)
+    adapter_path = "main/view_event/view_event_esp_adapter.c"
+    wifi_scan_adapter_paths = {
+        "main/wifi/wifi_scan_worker.c",
+        "main/wifi/wifi_scan_worker_esp_adapter.c",
+    }
+
+    if not rel.startswith("main/view_event/"):
+        for line in private_include_lines(
+            text, code_text, VIEW_EVENT_PRIVATE_INCLUDE_RE
+        ):
+            add_finding(
+                findings,
+                path,
+                line,
+                "view-event-private-adapter",
+                "runtime code must use view_event.h, not the private adapter seam",
+            )
+
+    if rel not in wifi_scan_adapter_paths:
+        for line in private_include_lines(
+            text, code_text, WIFI_SCAN_PRIVATE_INCLUDE_RE
+        ):
+            add_finding(
+                findings,
+                path,
+                line,
+                "wifi-scan-private-adapter",
+                "runtime code must use wifi_scan_worker.h, not its private adapter seam",
+            )
+
+    for match in VIEW_EVENT_LEGACY_TRANSPORT_RE.finditer(code_text):
+        add_finding(
+            findings,
+            path,
+            line_number(text, match.start()),
+            "view-event-legacy-transport",
+            f"{match.group(1)} bypasses the view_event module interface",
+        )
+
+    if rel != adapter_path:
+        for match in VIEW_EVENT_INTERNAL_TRANSPORT_RE.finditer(code_text):
+            add_finding(
+                findings,
+                path,
+                line_number(text, match.start()),
+                "view-event-internal-transport",
+                "the ESP Event transport base belongs only to the production adapter",
+            )
+
+    if rel.startswith("main/view_event/") and rel != adapter_path:
+        for match in ESP_EVENT_TRANSPORT_CALL_RE.finditer(code_text):
+            add_finding(
+                findings,
+                path,
+                line_number(text, match.start()),
+                "view-event-adapter-boundary",
+                f"{match.group(1)} belongs only in view_event_esp_adapter.c",
+            )
+
+    command_interface_paths = {
+        "main/view_event/view_event.c",
+        "main/view_event/view_event.h",
+    }
+    for match in (
+        ()
+        if rel in command_interface_paths
+        else VIEW_EVENT_COMMAND_CALL_RE.finditer(code_text)
+    ):
+        if command_result_is_handled(code_text, match):
+            continue
+        add_finding(
+            findings,
+            path,
+            line_number(text, match.start()),
+            "view-event-command-result",
+            "critical command delivery results must be handled explicitly",
+        )
+
+
 def scan() -> list[Finding]:
     findings: list[Finding] = []
     for path in iter_source_files():
@@ -340,6 +545,7 @@ def scan() -> list[Finding]:
         scan_shared_bsp_includes(path, text, findings)
         scan_event_payload_comments(path, text, findings)
         scan_service_callbacks(path, text, findings)
+        scan_view_event_seam(path, text, findings)
     return findings
 
 

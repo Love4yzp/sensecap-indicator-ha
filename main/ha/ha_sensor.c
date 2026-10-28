@@ -1,6 +1,7 @@
 #include "ha_sensor.h"
 #include "ha_mqtt.h"
 #include "view_data.h"
+#include "view_event.h"
 #include "home_assistant_config.h"
 #include "cJSON.h"
 #include "esp_log.h"
@@ -59,7 +60,8 @@ static void publish_sensor_data(const struct view_data_sensor_data *sensor_data)
     }
 }
 
-static void view_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
+static void view_event_handler(
+    void *handler_args, enum view_event_id id, const void *event_data)
 {
     if (id == VIEW_EVENT_SENSOR_DATA) {
         ESP_LOGI(TAG, "event: VIEW_EVENT_SENSOR_DATA");
@@ -81,7 +83,8 @@ void ha_sensor_init(void)
         };
     }
 
-    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_SENSOR_DATA, view_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(view_event_subscribe(
+        VIEW_EVENT_SENSOR_DATA, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 }
 
 void ha_sensor_subscribe(esp_mqtt_client_handle_t client)
@@ -133,7 +136,8 @@ int ha_sensor_on_mqtt_data(const char *topic, int topic_len, const char *data, i
                  *      lock, does lv_label_set_text(labels[data->index], data->value).
                  *   3. Make sensor_data.index here map to the intended card slot.
                  */
-                esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_HA_SENSOR, &sensor_data, sizeof(sensor_data), portMAX_DELAY);
+                view_event_publish_state(
+                    VIEW_EVENT_HA_SENSOR, &sensor_data, sizeof(sensor_data));
                 cJSON_Delete(root);
                 return 0;
             }

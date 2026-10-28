@@ -7,6 +7,7 @@
  * @copyright © 2023, Seeed Studio
  */
 #include "rp2040.h"
+#include "view_event.h"
 #include "esp_log.h"
 #include "cobs.h"
 #include "driver/uart.h"
@@ -265,8 +266,8 @@ static void _sensor_shutdown(void) {
 		ESP_LOGI(TAG, "sensor shutdown fail!. %d", ret);
 	}
 }
-static void _commu_event_handler(void* handler_args, esp_event_base_t base, int32_t id,
-								  void* event_data) {
+static void _commu_event_handler(
+	void* handler_args, enum view_event_id id, const void* event_data) {
 	switch(id)
 	{
 		case VIEW_EVENT_SHUTDOWN:
@@ -281,7 +282,6 @@ static void _commu_event_handler(void* handler_args, esp_event_base_t base, int3
 void esp32_rp2040_init(void) {
 	xTaskCreate(esp32_rp2040_comm_task, "esp32_rp2040_comm_task", ESP32_RP2040_COMM_TASK_STACK_SIZE,
 				NULL, 5, NULL);
-	ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, VIEW_EVENT_BASE,
-															 VIEW_EVENT_SHUTDOWN,
-															 _commu_event_handler, NULL, NULL));
+	ESP_ERROR_CHECK(view_event_subscribe(
+		VIEW_EVENT_SHUTDOWN, _commu_event_handler, NULL) ? ESP_OK : ESP_FAIL);
 }
