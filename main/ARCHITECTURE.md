@@ -195,11 +195,18 @@ Adding a new event: add it to `view_data_types.h` before `VIEW_EVENT_ALL`, add
 its category/payload/key descriptor in `view_event.c`, and update the stability
 manifest. `scripts/architecture_scan.py` rejects the legacy transport symbols,
 external use of the private adapter, and ESP Event transport calls outside the
-production adapter.
+production adapter. It also rejects domain code that includes the private
+`wifi_scan_worker_adapter.h` seam; runtime callers use
+`wifi_scan_worker.h`.
 
 The Wi-Fi domain owns `wifi_scan_worker`: the view-event handler only submits
 a latest-value request and returns. Its queue-length-one production adapter
 runs the synchronous ESP-IDF scan on a Wi-Fi-owned task, so the view-event
 delivery task never scans or self-posts a result while handling a request.
+The request handler takes its model snapshot with zero wait. Scan, snapshot,
+submission, or result-delivery failure produces
+`VIEW_EVENT_WIFI_LIST_FAILED`; the view clears pending/spinner state on that
+completion and retains a 15-second timeout as the final queue-pressure
+fallback.
 
 Adding a new page: add a tile in `nav/nav.h`, include the owning directory in `main/CMakeLists.txt`, build widgets in that domain's view/screen file, and call the view init function from `indicator_view.c`.

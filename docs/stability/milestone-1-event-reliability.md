@@ -55,7 +55,8 @@ the payload only while its subscribed handler is running.
 | `VIEW_EVENT_CITY` | currently unused | currently unused | documented city value | Replaceable state. |
 | `VIEW_EVENT_SENSOR_DATA` | RP2040 UART parser via sensor model | Sensor view and HA sensor publisher | `struct view_data_sensor_data` | Replaceable state, latest value per sensor type. |
 | Sensor history events | currently unused | currently unused | trigger/history payload per existing manifest | Replaceable state per event. |
-| `VIEW_EVENT_WIFI_LIST` | Wi-Fi scan consumer | Wi-Fi view | `struct view_data_wifi_list` | Critical result; rejection is counted and logged. |
+| `VIEW_EVENT_WIFI_LIST` | Wi-Fi scan worker | Wi-Fi view | `struct view_data_wifi_list` | Critical result; worker-owned bounded retry, then explicit failure completion. |
+| `VIEW_EVENT_WIFI_LIST_FAILED` | Wi-Fi model/scan worker | Wi-Fi view | `NULL` | Critical failure completion; clears pending/spinner, with the view timeout as final fallback. |
 | `VIEW_EVENT_WIFI_LIST_START` | currently unused | Wi-Fi view | `NULL` | Critical command/notification. |
 | `VIEW_EVENT_WIFI_LIST_REQ` | Wi-Fi views | Wi-Fi model and Wi-Fi view | `NULL` | Critical user command. |
 | `VIEW_EVENT_WIFI_CONNECT` | Wi-Fi connect view | Wi-Fi model and Wi-Fi view | `struct view_data_wifi_config` | Critical user command. |
@@ -176,11 +177,14 @@ would be a behavior change. Network-false state continues to arrive through
 
 - the removed `view_event_handle` and `VIEW_EVENT_BASE` transport symbols;
 - includes of the private adapter outside `main/view_event/`;
+- includes of `wifi_scan_worker_adapter.h` outside the worker and its production adapter;
 - use of the private transport base outside the production adapter;
 - direct ESP Event transport calls in the view-event core.
 
-The event enum is also checked for an inline payload and command/state policy
-comment. Unit tests cover each new boundary rule.
+The scan also rejects ignored critical-command results, including `(void)`
+casts and conditional bodies that call `view_event_post_command()` without
+examining its result. The event enum is checked for an inline payload and
+command/state policy comment. Unit tests cover each boundary rule.
 
 ## Wi-Fi scan worker
 
@@ -192,11 +196,23 @@ the synchronous ESP-IDF scan, de-duplicates SSIDs, builds the existing payload,
 and publishes the result. The view-event delivery task only submits work and
 returns; it no longer scans and posts back into its own queue.
 
-Scan results receive three worker-owned bounded delivery attempts. The Wi-Fi
-view also owns a 15-second LVGL timer for every accepted scan request; receiving
-the list cancels it, while expiry clears pending state and hides the spinner.
-Thus permanent view-event queue pressure cannot leave the modal indefinitely
-pending, and synchronous scanning remains outside the view-event task.
+Scan results receive three worker-owned bounded delivery attempts. If the scan
+adapter fails, or all result attempts are rejected, the worker posts an
+explicit `VIEW_EVENT_WIFI_LIST_FAILED` completion. The request handler takes
+the Wi-Fi model snapshot with zero wait; snapshot or worker submission failure
+uses the same completion rather than blocking the view-event delivery task.
+The Wi-Fi view clears pending state and hides the spinner for either completion.
+It also owns a 15-second LVGL timer for every accepted scan request as a final
+fallback if queue pressure rejects both the result and failure completion.
+Thus permanent pressure cannot leave the modal indefinitely pending, and
+synchronous scanning remains outside the view-event task.
+
+HA switch screen slots track the last accepted value from both local commands
+and model-driven updates. Programmatic application and rejection rollback use
+a slot-local suppression guard, so LVGL `VALUE_CHANGED` re-entry updates the
+visual state without emitting a second HA command. This guard is deliberately
+scoped to rollback/model synchronization; HA state echo and input debounce
+remain outside this stage.
 
 ## Sleep/shutdown idempotency
 
