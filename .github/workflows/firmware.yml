@@ -1,0 +1,173 @@
+name: Firmware CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: firmware-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    name: Host checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run no-hardware checks
+        run: python3 scripts/dev_check.py --skip-build
+
+  esp32:
+    name: ESP32-S3 firmware
+    needs: host
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Clean build with ESP-IDF 5.5.6
+        uses: espressif/esp-idf-ci-action@e6f5c74232b1ccd4c97ed641f1e48553853f1fd5 # v1.2.0
+        with:
+          esp_idf_version: v5.5.6
+          target: esp32s3
+          command: ./dev build
+
+      - name: Collect ESP32-S3 firmware
+        run: |
+          mkdir -p artifacts/esp32s3
+          cp build/bootloader/bootloader.bin artifacts/esp32s3/
+          cp build/partition_table/partition-table.bin artifacts/esp32s3/
+          cp build/indicator_ha.bin artifacts/esp32s3/
+          cp build/indicator_ha.elf artifacts/esp32s3/
+          cp build/flasher_args.json artifacts/esp32s3/
+          cp build/flash_args artifacts/esp32s3/
+          cp sdkconfig artifacts/esp32s3/
+          (
+            cd artifacts/esp32s3
+            sha256sum \
+              bootloader.bin \
+              partition-table.bin \
+              indicator_ha.bin \
+              indicator_ha.elf \
+              flasher_args.json \
+              flash_args \
+              sdkconfig > SHA256SUMS
+          )
+
+      - name: Upload ESP32-S3 firmware
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-esp32s3
+          path: artifacts/esp32s3/
+          if-no-files-found: error
+          retention-days: 14
+
+  rp2040:
+    name: RP2040 firmware
+    needs: host
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-6.2.0-${{ hashFiles('rp2040/platformio.ini') }}
+          restore-keys: |
+            platformio-${{ runner.os }}-6.2.0-
+
+      - name: Install PlatformIO 6.2.0
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --disable-pip-version-check platformio==6.2.0
+
+      - name: Build RP2040 firmware
+        run: |
+          . .venv/bin/activate
+          ./dev rp2040 build
+
+      - name: Collect RP2040 firmware
+        run: |
+          mkdir -p artifacts/rp2040
+          cp rp2040/.pio/build/indicator_rp2040/firmware.uf2 artifacts/rp2040/
+          cp rp2040/.pio/build/indicator_rp2040/firmware.elf artifacts/rp2040/
+          (
+            cd artifacts/rp2040
+            sha256sum firmware.uf2 firmware.elf > SHA256SUMS
+          )
+
+      - name: Upload RP2040 firmware
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-rp2040
+          path: artifacts/rp2040/
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - esp32
+      - rp2040
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download ESP32-S3 firmware
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.0
+        with:
+          name: firmware-esp32s3
+          path: release-input/esp32s3
+
+      - name: Download RP2040 firmware
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.0
+        with:
+          name: firmware-rp2040
+          path: release-input/rp2040
+
+      - name: Package release assets
+        run: |
+          python3 scripts/package_release.py \
+            --version "${GITHUB_REF_NAME}" \
+            --commit "${GITHUB_SHA}" \
+            --esp32-dir release-input/esp32s3 \
+            --rp2040-dir release-input/rp2040 \
+            --output-dir release
+
+      - name: Create or update GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" release/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              release/* \
+              --verify-tag \
+              --generate-notes \
+              --title "${GITHUB_REF_NAME}"
+          fi

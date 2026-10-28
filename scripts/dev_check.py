@@ -38,6 +38,7 @@ def main() -> int:
     run("RGB LCD config", ["python3", "scripts/test_lcd_rgb_config.py"])
     run("UI geometry", ["python3", "scripts/test_ui_geometry.py"])
     run("Click deploy package", ["python3", "scripts/test_click_deploy_package.py"])
+    run("GitHub CI/CD", ["python3", "scripts/test_github_workflows.py"])
     run("Development CLI", ["python3", "scripts/test_dev_cli.py"])
     run("LVGL health diagnostics", ["python3", "scripts/test_lvgl_health.py"])
     run("HA switch synchronization", ["python3", "scripts/test_ha_switch_sync.py"])
