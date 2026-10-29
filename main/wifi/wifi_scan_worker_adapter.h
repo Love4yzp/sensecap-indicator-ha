@@ -8,7 +8,7 @@
 #include <stdint.h>
 
 struct wifi_scan_record {
-    char ssid[32];
+    char ssid[33];
     bool auth_mode;
     int8_t rssi;
 };

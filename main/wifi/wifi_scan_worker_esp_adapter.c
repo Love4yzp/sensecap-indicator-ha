@@ -94,8 +94,8 @@ bool wifi_scan_worker_adapter_scan(
         available = capacity;
     }
     for (size_t i = 0; i < available; i++) {
-        memcpy(records[i].ssid, ap_info[i].ssid, sizeof(records[i].ssid));
-        records[i].ssid[sizeof(records[i].ssid) - 1] = '\0';
+        memcpy(records[i].ssid, ap_info[i].ssid, sizeof(ap_info[i].ssid));
+        records[i].ssid[sizeof(ap_info[i].ssid)] = '\0';
         records[i].auth_mode = ap_info[i].authmode != WIFI_AUTH_OPEN;
         records[i].rssi = ap_info[i].rssi;
     }

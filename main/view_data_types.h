@@ -21,22 +21,26 @@ enum start_screen {
 
 #define WIFI_SCAN_LIST_SIZE 15
 
+/* SSIDs are up to 32 bytes; ssid[33] keeps room for the NUL terminator so a
+ * full-length 32-char SSID from a wifi_ap_record_t / wifi_event_sta_connected_t
+ * copies in without losing the terminator. These structs are event payloads;
+ * producers/consumers use sizeof() rather than assuming a length. */
 struct view_data_wifi_st {
     bool    is_connected;
     bool    is_connecting;
     bool    is_network;
-    char    ssid[32];
+    char    ssid[33];
     int8_t  rssi;
 };
 
 struct view_data_wifi_config {
-    char    ssid[32];
+    char    ssid[33];
     uint8_t password[64];
     bool    have_password;
 };
 
 struct view_data_wifi_item {
-    char    ssid[32];
+    char    ssid[33];
     bool    auth_mode;
     int8_t  rssi;
 };
