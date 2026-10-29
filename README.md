@@ -142,6 +142,8 @@ Connect to the ESP32-S3 console at 115200 baud.
 | `haconfig` | Show the saved MQTT and Home Assistant settings |
 | `setmqtt -a <addr>` | Set the broker address |
 | `setmqtt -a <addr> -c <client-id> -u <user> -p <pass>` | Set the complete broker configuration |
+| `setmqtt --insecure` / `--secure` | Skip / re-enable TLS server verification (mqtts only) |
+| `setmqttca` / `setmqttca -c` | Paste a CA certificate for `mqtts://`, or clear it |
 
 Examples:
 
@@ -152,6 +154,29 @@ setmqtt --addr mqtt://192.168.1.10:1883
 
 The firmware saves a successful `setmqtt` update to NVS and restarts the MQTT
 client.
+
+### TLS (`mqtts://`)
+
+Use an `mqtts://` broker URL to encrypt the MQTT connection (the port defaults
+to 8883). The touchscreen MQTT page stays plaintext-only; TLS is configured from
+the serial console.
+
+Verification order: a stored CA if present, otherwise the public CA bundle (for
+cloud brokers with real certificates). LAN brokers with a self-signed or private
+CA need `setmqttca`. `setmqtt --insecure` skips verification and is meant for
+quick testing only.
+
+With Home Assistant's Mosquitto add-on, set `certfile`/`keyfile`/`cafile` in the
+add-on configuration to expose a TLS listener on 8883, paste the CA into
+`setmqttca`, then point `setmqtt` at `mqtts://<HA-host>:8883`.
+
+### Security notes
+
+MQTT and Wi-Fi credentials are stored in plaintext in NVS, and the serial
+console is unauthenticated — anyone with physical or USB access can read them
+back. Use a dedicated MQTT user with a limited ACL so a leaked credential cannot
+reach the rest of your broker. Before reselling or disposing of the device, run
+`idf.py erase-flash` to wipe stored credentials.
 
 ## Development
 

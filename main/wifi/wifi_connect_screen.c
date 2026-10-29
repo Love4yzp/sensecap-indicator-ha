@@ -15,14 +15,26 @@ struct wifi_connect_screen {
     lv_obj_t *kb;
     lv_obj_t *password_input;
     lv_obj_t *join_btn;
-    char       ssid[32];
+    char       ssid[33];
     bool       password_ready;
+    wifi_connect_dismiss_cb_t on_dismiss;
+    void      *dismiss_user_data;
 };
 
 /* ── internal helpers ─────────────────────────────────────────────────── */
 
 static void _dismiss(wifi_connect_screen_t *s) {
     if(!s) return;
+
+    /* Notify the owner FIRST and clear our hook so it fires exactly once.
+     * Doing this before teardown means a reentrant dismiss finds the owner's
+     * handle already NULL and bails, so there is no double free. The callback
+     * only drops the owner's reference; it must not free `s` or re-enter. */
+    wifi_connect_dismiss_cb_t cb = s->on_dismiss;
+    void *cb_data = s->dismiss_user_data;
+    s->on_dismiss = NULL;
+    if(cb) cb(cb_data);
+
     if(s->kb) {
         lv_obj_delete(s->kb);
         s->kb = NULL;
@@ -51,12 +63,12 @@ static void _on_join(lv_event_t *e) {
 
     struct view_data_wifi_config cfg;
     memset(&cfg, 0, sizeof(cfg));
-    strncpy(cfg.ssid, s->ssid, sizeof(cfg.ssid));
+    strlcpy(cfg.ssid, s->ssid, sizeof(cfg.ssid));
 
     if(s->kb != NULL && s->password_input != NULL) {
         cfg.have_password = true;
         const char *pw = lv_textarea_get_text(s->password_input);
-        strncpy((char *)cfg.password, pw, sizeof(cfg.password));
+        strlcpy((char *)cfg.password, pw, sizeof(cfg.password));
     } else {
         cfg.have_password = false;
     }
@@ -119,7 +131,7 @@ static void _on_delete(lv_event_t *e) {
 wifi_connect_screen_t *wifi_connect_screen_show(const char *ssid, bool have_password) {
     wifi_connect_screen_t *s = calloc(1, sizeof(wifi_connect_screen_t));
     if(!s) return NULL;
-    strncpy(s->ssid, ssid, sizeof(s->ssid));
+    strlcpy(s->ssid, ssid, sizeof(s->ssid));
 
     lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_opa(lv_layer_top(), LV_OPA_COVER, 0);
@@ -195,7 +207,7 @@ wifi_connect_screen_t *wifi_connect_screen_show(const char *ssid, bool have_pass
 wifi_connect_screen_t *wifi_details_screen_show(const char *ssid) {
     wifi_connect_screen_t *s = calloc(1, sizeof(wifi_connect_screen_t));
     if(!s) return NULL;
-    strncpy(s->ssid, ssid, sizeof(s->ssid));
+    strlcpy(s->ssid, ssid, sizeof(s->ssid));
 
     lv_obj_add_flag(lv_layer_top(), LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_bg_opa(lv_layer_top(), LV_OPA_COVER, 0);
@@ -239,6 +251,14 @@ wifi_connect_screen_t *wifi_details_screen_show(const char *ssid) {
 
     ESP_LOGI(TAG, "details dialog open: %s", ssid);
     return s;
+}
+
+void wifi_connect_screen_set_dismiss_cb(wifi_connect_screen_t *s,
+                                        wifi_connect_dismiss_cb_t on_dismiss,
+                                        void *user_data) {
+    if(!s) return;
+    s->on_dismiss = on_dismiss;
+    s->dismiss_user_data = user_data;
 }
 
 void wifi_connect_screen_dismiss(wifi_connect_screen_t *s) {

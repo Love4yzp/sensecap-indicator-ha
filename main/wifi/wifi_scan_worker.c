@@ -15,10 +15,10 @@
 #define WIFI_SCAN_LOG_ERROR(...) ((void)0)
 #endif
 
-static void wifi_scan_copy_ssid(char destination[32], const char source[32])
+static void wifi_scan_copy_ssid(char destination[33], const char source[33])
 {
-    memcpy(destination, source, 32);
-    destination[31] = '\0';
+    memcpy(destination, source, 33);
+    destination[32] = '\0';
 }
 
 static bool wifi_scan_list_contains(
