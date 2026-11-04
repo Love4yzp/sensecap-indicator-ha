@@ -72,3 +72,20 @@ $env:ESPPORT = "COM7"
 $env:RP2040_PORT = "COM8"
 .\windows\flash_all.ps1
 ```
+
+## After flashing
+
+1. Configure Wi-Fi on the Indicator.
+2. In Home Assistant, open **Settings → Devices & services**. Select the ESPHome
+   device if it appears under discovered devices; otherwise choose
+   **Add Integration → ESPHome** and enter the Indicator's IP address or
+   resolvable hostname with port **6053**.
+3. Leave the encryption-key field blank when no Native PSK is configured. If a
+   PSK is configured, enter the same base64 key used on the device.
+
+Native API is enabled by default and needs no MQTT broker or MQTT YAML. The
+ESPHome device page contains the 12 entities; add dashboard cards separately if
+needed. MQTT remains optional for existing broker/topic integrations.
+
+See the [main README's Native API and MQTT guide](../README.md#home-assistant-native-api-and-mqtt)
+for entity behavior, PSK security, console commands, and the MQTT alternative.

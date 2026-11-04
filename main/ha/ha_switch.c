@@ -1,4 +1,6 @@
 #include "ha_switch.h"
+#include "entity_core.h"
+#include "entity_registry.h"
 #include "ha_mqtt.h"
 #include "view_data.h"
 #include "view_event.h"
@@ -20,7 +22,6 @@ typedef struct ha_switch_entity {
 } ha_switch_entity_t;
 
 static ha_switch_entity_t ha_switch_entities[CONFIG_HA_SWITCH_ENTITY_NUM];
-static int switch_state[CONFIG_HA_SWITCH_ENTITY_NUM];
 
 static void publish_switch_result(
     const struct view_data_ha_switch_command *command,
@@ -38,85 +39,105 @@ static void publish_switch_result(
     if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED) {
         ESP_LOGE(
             TAG,
-            "switch publish result rejected: index=%u generation=%lu delivery=%d",
+            "switch result rejected: index=%u generation=%lu delivery=%d",
             (unsigned)command->index,
             (unsigned long)command->generation,
             (int)delivery);
     }
 }
 
-static void publish_switch_state(
-    const struct view_data_ha_switch_command *command)
+static void publish_mqtt_state(uint8_t control_slot, int value)
 {
-    bool accepted = false;
-    int authoritative_value = command->value;
-
-    static const char *switch_keys[] = CONFIG_SWITCH_VALUE_KEYS;
-    static const char *switch_topics[] = CONFIG_SWITCH_TOPICS_STATE;
-
-    if (command->index >= CONFIG_HA_SWITCH_ENTITY_NUM) {
-        ESP_LOGE(TAG, "Invalid switch index: %u", (unsigned)command->index);
-    } else {
-        authoritative_value = switch_state[command->index];
-        if (!mqtt_ha_instance.mqtt_connected_flag ||
-            mqtt_ha_instance.mqtt_client == NULL) {
-            ESP_LOGE(
-                TAG,
-                "switch publish rejected while MQTT is disconnected: index=%u",
-                (unsigned)command->index);
-        } else {
-            char data_buf[MAX_DATA_BUF_LEN];
-            int len = snprintf(
-                data_buf,
-                sizeof(data_buf),
-                "{\"%s\": %d}",
-                switch_keys[command->index],
-                command->value);
-
-            if (len > 0 && len < MAX_DATA_BUF_LEN) {
-                int message_id = esp_mqtt_client_publish(
-                    mqtt_ha_instance.mqtt_client,
-                    switch_topics[command->index],
-                    data_buf,
-                    len,
-                    0,
-                    0);
-                accepted = message_id >= 0;
-                if (accepted) {
-                    switch_state[command->index] = command->value;
-                    authoritative_value = command->value;
-                } else {
-                    ESP_LOGE(
-                        TAG,
-                        "MQTT switch publish failed: index=%u result=%d",
-                        (unsigned)command->index,
-                        message_id);
-                }
-            } else {
-                ESP_LOGE(TAG, "Failed to format switch data");
-            }
-        }
+    char data_buf[MAX_DATA_BUF_LEN];
+    int len = snprintf(
+        data_buf,
+        sizeof(data_buf),
+        "{\"%s\": %d}",
+        ha_switch_entities[control_slot].key,
+        value);
+    if (len <= 0 || len >= MAX_DATA_BUF_LEN) {
+        ESP_LOGE(TAG, "Failed to format switch data");
+        return;
     }
 
-    publish_switch_result(command, authoritative_value, accepted);
+    esp_err_t result = mqtt_publish_enqueue(
+        &mqtt_ha_instance,
+        ha_switch_entities[control_slot].topic_state,
+        data_buf,
+        (size_t)len);
+    if (result != ESP_OK) {
+        ESP_LOGW(
+            TAG,
+            "MQTT switch state dropped: index=%u result=%d",
+            (unsigned)control_slot,
+            result);
+    }
 }
 
-static void publish_initial_switch_state(void)
+static void core_state_observer(
+    const entity_core_snapshot_t *snapshot, void *context)
 {
-    for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
-        struct view_data_ha_switch_data switch_data = {.index = i, .value = switch_state[i]};
-        view_event_delivery_t delivery = view_event_publish_state(
-            VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
-        if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED &&
-            delivery != VIEW_EVENT_DELIVERY_COALESCED) {
-            ESP_LOGE(
-                TAG,
-                "initial switch %d dropped: delivery=%d",
-                i,
-                (int)delivery);
-        }
+    (void)context;
+    if (snapshot->index < ENTITY_INDEX_CONTROL_FIRST ||
+        snapshot->index >= ENTITY_INDEX_COUNT || !snapshot->valid) {
+        return;
+    }
 
-        ESP_LOGI(TAG, "Initial switch %d state: %d", i, switch_state[i]);
+    uint8_t control_slot =
+        (uint8_t)(snapshot->index - ENTITY_INDEX_CONTROL_FIRST);
+    int value = (int)snapshot->value;
+    struct view_data_ha_switch_data switch_data = {
+        .index = control_slot,
+        .value = value,
+    };
+    view_event_delivery_t delivery = view_event_publish_state(
+        VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
+    if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED &&
+        delivery != VIEW_EVENT_DELIVERY_COALESCED) {
+        ESP_LOGE(
+            TAG,
+            "switch state update dropped: index=%u delivery=%d",
+            (unsigned)control_slot,
+            (int)delivery);
+    }
+
+    publish_mqtt_state(control_slot, value);
+}
+
+static void publish_switch_command(
+    const struct view_data_ha_switch_command *command)
+{
+    uint8_t entity_index = entity_registry_control_index(command->index);
+    if (entity_index == ENTITY_INDEX_INVALID) {
+        ESP_LOGE(TAG, "Invalid switch index: %u", (unsigned)command->index);
+        publish_switch_result(command, command->value, false);
+        return;
+    }
+
+    entity_core_command_t core_command = {
+        .index = entity_index,
+        .value = (float)command->value,
+        .generation = command->generation,
+        .source = ENTITY_CORE_SOURCE_LOCAL_UI,
+    };
+    entity_core_command_result_t core_result;
+    entity_core_status_t status =
+        entity_core_submit_command(&core_command, &core_result);
+    if (status != ENTITY_CORE_STATUS_OK) {
+        ESP_LOGE(
+            TAG,
+            "switch command rejected: index=%u status=%d",
+            (unsigned)command->index,
+            (int)status);
+    }
+    publish_switch_result(
+        command, (int)core_result.value, core_result.accepted);
+}
+
+static void publish_current_switch_states(void)
+{
+    if (!entity_core_replay(core_state_observer, NULL)) {
+        ESP_LOGE(TAG, "Failed to replay switch snapshots");
     }
 }
 
@@ -126,7 +147,7 @@ static void view_event_handler(
     switch (id) {
         case VIEW_EVENT_HA_SWITCH_ST:
             ESP_LOGI(TAG, "event: VIEW_EVENT_HA_SWITCH_ST");
-            publish_switch_state(
+            publish_switch_command(
                 (const struct view_data_ha_switch_command *)event_data);
             break;
         default:
@@ -151,7 +172,9 @@ void ha_switch_init(void)
         };
     }
 
-    publish_initial_switch_state();
+    ESP_ERROR_CHECK(
+        entity_core_add_observer(core_state_observer, NULL) ? ESP_OK : ESP_FAIL);
+    publish_current_switch_states();
 
     ESP_ERROR_CHECK(view_event_subscribe(
         VIEW_EVENT_HA_SWITCH_ST, view_event_handler, NULL) ? ESP_OK : ESP_FAIL);
@@ -163,6 +186,7 @@ void ha_switch_subscribe(esp_mqtt_client_handle_t client)
         int msg_id = esp_mqtt_client_subscribe(client, ha_switch_entities[i].topic_set, ha_switch_entities[i].qos);
         ESP_LOGI(TAG, "subscribe:%s, msg_id=%d", ha_switch_entities[i].topic_set, msg_id);
     }
+    publish_current_switch_states();
 }
 
 int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, int data_len)
@@ -182,30 +206,41 @@ int ha_switch_on_mqtt_data(const char *topic, int topic_len, const char *data, i
 
     cJSON *c_key = root->child;
     ESP_LOGI(TAG, "c_key = %s", c_key->string);
-    size_t key_len = strlen(c_key->string);
-
     for (int i = 0; i < CONFIG_HA_SWITCH_ENTITY_NUM; i++) {
-        if (strncmp(c_key->string, ha_switch_entities[i].key, key_len) == 0) {
-            cJSON *cjson_item = cJSON_GetObjectItem(root, ha_switch_entities[i].key);
-            if (cjson_item != NULL && cJSON_IsNumber(cjson_item)) {
-                struct view_data_ha_switch_data switch_data = {.index = i, .value = cjson_item->valueint};
-                ESP_LOGI(TAG, "MQTT message: %s set to %d", ha_switch_entities[i].key, switch_data.value);
-                switch_state[i] = switch_data.value;
-                view_event_delivery_t delivery = view_event_publish_state(
-                    VIEW_EVENT_HA_SWITCH_SET, &switch_data, sizeof(switch_data));
-                if (delivery != VIEW_EVENT_DELIVERY_ENQUEUED &&
-                    delivery != VIEW_EVENT_DELIVERY_COALESCED) {
-                    ESP_LOGE(
-                        TAG,
-                        "MQTT switch update dropped: delivery=%d",
-                        (int)delivery);
-                    cJSON_Delete(root);
-                    return -1;
-                }
-                cJSON_Delete(root);
-                return 0;
-            }
+        if (strcmp(c_key->string, ha_switch_entities[i].key) != 0) {
+            continue;
         }
+
+        cJSON *cjson_item =
+            cJSON_GetObjectItemCaseSensitive(root, ha_switch_entities[i].key);
+        if (cjson_item == NULL || !cJSON_IsNumber(cjson_item)) {
+            break;
+        }
+
+        entity_core_command_t command = {
+            .index = entity_registry_control_index((uint8_t)i),
+            .value = (float)cjson_item->valuedouble,
+            .source = ENTITY_CORE_SOURCE_MQTT,
+        };
+        entity_core_command_result_t result;
+        entity_core_status_t status = entity_core_submit_command(&command, &result);
+        if (status != ENTITY_CORE_STATUS_OK) {
+            ESP_LOGW(
+                TAG,
+                "MQTT switch command rejected: index=%d status=%d",
+                i,
+                (int)status);
+            cJSON_Delete(root);
+            return -1;
+        }
+
+        ESP_LOGI(
+            TAG,
+            "MQTT message: %s set to %d",
+            ha_switch_entities[i].key,
+            (int)result.value);
+        cJSON_Delete(root);
+        return 0;
     }
 
     ESP_LOGW(TAG, "No matching switch topic or invalid JSON structure");

@@ -1,4 +1,22 @@
 dependencies:
+  esphome/libsodium:
+    component_hash: 39bee6f58d2d7fb8f2d30e04133afe60d0b642792196d36cde3a6dd07738fb08
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.10021.12
+  esphome/noise-c:
+    component_hash: 12dcc72a8ca1ba82f703aaba07dcddeab6037135a7fa7e73e99af80efd6e565f
+    dependencies:
+    - name: esphome/libsodium
+      registry_url: https://components.espressif.com
+      require: private
+      version: 1.10021.12
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.1.31
   espressif/esp_lvgl_port:
     component_hash: d3c020b45c3dfc0d1706a83b63a1c34a6eb444a6e935f9afff79f92b7b94dcef
     dependencies:
@@ -13,10 +31,27 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 2.9.0
+  espressif/mdns:
+    component_hash: 3ec0af5f6bce310512e90f482388d21cc7c0e99668172d2f895356165fc6f7c5
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.8.2
   idf:
     source:
       type: idf
     version: 5.5.6
+  livekit/nanopb:
+    component_hash: 6a1682f4de30d155d0ec14552e482875f295df75af1740f687fd88198cd19f48
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 0.4.9~2
   lvgl/lvgl:
     component_hash: 7d82410747bbfb319531449749e940f440f8414f041f9eaba13f0d1dd7f58cdd
     dependencies:
@@ -49,9 +84,13 @@ dependencies:
       type: service
     version: 9.6.0~1
 direct_dependencies:
+- esphome/libsodium
+- esphome/noise-c
 - espressif/esp_lvgl_port
+- espressif/mdns
 - idf
+- livekit/nanopb
 - lvgl/lvgl
-manifest_hash: d7d278b88bb6fff47ff719e48570fff37714f1a56aeb9f809020fda20048a21f
+manifest_hash: 6a04675b6c442e3ece5232d4721600f139cc010a1a4a3747a763dd6a5e1b91a8
 target: esp32s3
 version: 2.0.0

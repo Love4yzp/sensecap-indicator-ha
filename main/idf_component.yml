@@ -7,3 +7,11 @@ dependencies:
   espressif/esp_lvgl_port:
     version: "2.9.0"
     public: true
+  livekit/nanopb:
+    version: "0.4.9~2"
+  espressif/mdns:
+    version: "1.8.2"
+  esphome/noise-c:
+    version: "0.1.31"
+  esphome/libsodium:
+    version: "1.10021.12"

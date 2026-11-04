@@ -1,6 +1,6 @@
 # Firmware Architecture
 
-SenseCAP Indicator firmware for ESP32-S3 + RP2040. ESP-IDF v5.5.6, FreeRTOS, LVGL 9 via ESP Component Manager, esp-mqtt.
+SenseCAP Indicator firmware for ESP32-S3 + RP2040. ESP-IDF v5.5.6, FreeRTOS, LVGL 9 via ESP Component Manager, esp-mqtt, nanopb, mDNS, and Noise.
 
 ---
 
@@ -9,7 +9,7 @@ SenseCAP Indicator firmware for ESP32-S3 + RP2040. ESP-IDF v5.5.6, FreeRTOS, LVG
 ```
 main/
   main.c                  Entry point. Initializes the view-event module, then calls view init and model init.
-  indicator_model.c       Model init orchestrator for storage, button, display, RP2040, sensor, command, Wi-Fi, MQTT, and HA.
+  indicator_model.c       Model init orchestrator for storage, button, display, RP2040, sensor, command, Entity Core, HA/Native, Wi-Fi, and MQTT.
   indicator_view.c        View init orchestrator. Creates nav tileview, then domain views/components.
   indicator_enabler.h     Aggregates all module headers; define-guards drive conditional init.
   view_data.h             Transitional forwarding header; do not use in new code.
@@ -20,7 +20,7 @@ main/
   nav/                    lv_tileview navigation for the main swipeable screens.
   assets/                 LVGL 9 image/font descriptors used by handwritten screen components.
 
-  ha/                     Home Assistant domain: broker config, MQTT lifecycle, sensors, switches, screen widgets.
+  ha/                     Home Assistant domain: Entity Registry/Core, MQTT and Native adapters, Noise/mDNS, configuration, and screen widgets.
   wifi/                   Wi-Fi domain: scanning, connection state, list/connect modals, status icon.
   sensor/                 Built-in sensor cache/parser and sensor data view.
   display/                LCD backlight, sleep mode, and display settings view.
@@ -54,9 +54,9 @@ app_main()
        → indicator_ha_view_init
   5. indicator_model_init()
        indicator_nvs_init → indicator_btn_init → indicator_display_init
-       → esp32_rp2040_init → indicator_sensor_init
-       → indicator_cmd_init
-       → indicator_wifi_model_init → indicator_mqtt_init → indicator_ha_model_init
+       → esp32_rp2040_init → indicator_sensor_init → indicator_cmd_init
+       → entity_core_init → indicator_ha_model_init → native_api_init
+       → indicator_mqtt_init → indicator_wifi_model_init
 ```
 
 View initialization runs before model initialization in the current code. Screen components must tolerate initial empty state and update when model events arrive.
@@ -97,39 +97,76 @@ transport-accepted command cannot be discarded by later lock contention.
 | Critical command | Three fixed 5 ms adapter attempts; 15 ms maximum transport wait; accepted commands dispatch through the append-only subscriber snapshot | `VIEW_EVENT_DELIVERY_REJECTED`, centralized error log; caller must not advance local state | enqueued, retries, rejected, dispatched after handler execution |
 | Replaceable state | Zero-wait producer synchronization and queue token; latest value coalesces by event/key; a consumed token moves to the adapter retry queue while internal synchronization is busy | `VIEW_EVENT_DELIVERY_DROPPED`, centralized error log | enqueued, coalesced, dropped, dispatched after handler execution, synchronization busy |
 
-Sensor state is keyed by sensor type, and Home Assistant sensor state by entity
-index. Other state events keep one latest value per event. Payloads are copied
-before publication returns and are valid to subscribers only during the
-handler call.
+Built-in sensor state is keyed by sensor type; external HA sensor state and
+committed HA control state are keyed by their respective indices. Other state
+events keep one latest value per event. Payloads are copied before publication
+returns and are valid to subscribers only during the handler call.
 
 The full producer/consumer/payload/policy manifest is in
 `docs/stability/milestone-1-event-reliability.md`.
 
-## Home Assistant switch synchronization
+## Home Assistant Entity Core and transports
 
-The HA switch slice separates local intent, authoritative model state, and
-publication results:
+`ha/entity_registry.c` defines stable identities and shared metadata for 4 local
+sensors, 6 switches, and 2 numbers. The two numbers occupy legacy UI/MQTT slots
+5 and 8. `ha/entity_core.c` exclusively owns authoritative values, validity,
+source, and monotonically increasing `state_version`. It validates and serially
+commits commands, copies snapshots out under its lock, and invokes observers
+after unlocking. Registry/Core contain no LVGL, MQTT, or socket I/O.
 
-- `VIEW_EVENT_HA_SWITCH_ST` carries a generation-tagged local command.
-- `VIEW_EVENT_HA_SWITCH_SET` is replaceable state keyed by switch index.
-- `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` returns the generation, acceptance
-  status, and controller-authoritative rollback value.
+Control values are RAM-only and cold-start at zero. Sensors begin with
+`valid=false` and Native exposes `missing_state` until an RP2040 sample arrives.
+There is no runtime-state NVS persistence. Restarting or reconnecting either
+transport does not reset Core.
 
-`ha_switch_sync` is the pure in-process module at the synchronization seam. It
-owns generations, debounce state, accepted values, stale-result filtering, and
-rollback decisions. `ha_switch_screen.c` adapts those actions to LVGL widgets
-and one-shot timers. Toggle input publishes immediately; arc and slider input
-uses a 200 ms quiet-period debounce. Model state cancels pending local timers
-and is applied with command emission suppressed.
+### Existing LVGL seam and local commands
 
-`ha_switch.c` owns MQTT protocol and NVS state only. It does not include LVGL,
-hold a screen pointer, or acquire the LVGL lock. A local publish is confirmed
-only when ESP-MQTT accepts it with a non-negative message id; otherwise the
-screen receives an explicit rejection or rolls back after its 2 second result
-timeout.
+- `VIEW_EVENT_HA_SWITCH_ST` carries a generation-tagged local UI command to
+  `ha_switch.c`, which submits it to Core.
+- `VIEW_EVENT_HA_SWITCH_SET` is replaceable committed Core state keyed by control
+  slot, regardless of whether the source was boot, local UI, MQTT, or Native.
+- `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` retains its legacy name but reports Core
+  validation/commit acceptance and the authoritative value, not MQTT publish
+  acceptance.
 
-The detailed contract and host scenarios are in
-`docs/stability/milestone-2-ha-state-sync.md`.
+`ha_switch_sync` remains the pure generation/debounce/result module.
+`ha_switch_screen.c` retains `switch_slot_t`, `widget_update_fn`, `suppress_post`,
+and one-shot LVGL timers. Toggle input submits immediately; arc and slider input
+uses a 200 ms quiet-period debounce. Core model state cancels pending local
+timers and is applied with command emission suppressed.
+
+A local command that Core accepts remains applied while MQTT or Home Assistant
+is offline; transport failure does not roll it back. View-event rejection,
+invalid Core input, or the existing 2 second local-result timeout can still
+restore the last accepted UI value. `ha_switch.c` remains UI-free and does not
+own LVGL objects.
+
+### MQTT and Native lifecycle
+
+MQTT and Native are independent adapters with separate NVS enable keys and
+idempotent lifecycle paths. They can run separately or together; enabling,
+disabling, or reconfiguring one does not restart the other or clear Core. Both
+read current Core snapshots when a subscriber/reconnect needs initial state.
+
+A missing `native-enabled` key defaults Native to enabled for zero-broker HA
+setup, while an explicit stored false disables it. A missing `mqtt-enabled` key
+defaults MQTT to enabled only if a valid stored broker configuration exists.
+Existing MQTT topics, JSON keys, payload formats, and QoS remain unchanged.
+
+`view_data_wifi_st.has_ip` is the LAN-ready signal set by
+`IP_EVENT_STA_GOT_IP`; it gates MQTT, Native, and mDNS. `is_network` is the
+separate public-Internet ping result and is not a local transport prerequisite.
+Thus loss of WAN need not stop LAN control.
+
+Native listens on TCP 6053, advertises `_esphomelib._tcp.local.` via mDNS, and
+uses a stable base-MAC-derived name/MAC identity. Manual IP/hostname setup still
+works when mDNS is unavailable. With no PSK (the default), Native is plaintext
+and unauthenticated; this is a LAN security risk. Configuring a fixed 32-byte
+PSK makes Noise NNpsk0（Curve25519、ChaChaPoly、SHA256） mandatory and rejects plaintext
+fallback. PSK provisioning/rotation and NVS/flash encryption are not provided.
+
+See `main/ha/README.md` for module/configuration details and
+`docs/stability/milestone-2-ha-state-sync.md` for synchronization scenarios.
 
 ## Other event loops
 
@@ -216,6 +253,8 @@ Before modifying a module, check its blast radius:
 |-----------|-------------|
 | `view_data_types.h`, `view_event/` | Cross-domain event contract and delivery policy |
 | `indicator_model.c`, `indicator_view.c` | Boot/init ordering |
+| `ha/entity_registry.*`, `ha/entity_core.*` | Stable HA identities and all local authoritative state |
+| `ha/native_api*`, `ha/native_config.*` | HA wire compatibility, LAN exposure, and PSK security boundary |
 | `lv_port.c`, `components/bsp/` | Display/touch hardware behavior |
 | `nav/nav.c` | Main page container ownership |
 | `main/assets/` | Shared image/font descriptors |
@@ -224,10 +263,19 @@ Verifying changes:
 
 ```bash
 python3 scripts/dev_check.py --skip-build
+python3 scripts/test_entity_core.py
+python3 scripts/test_ha_transport_config.py
+python3 scripts/test_native_api_protocol.py
+python3 scripts/test_native_api_noise.py
 python3 scripts/test_ha_switch_sync.py       # pure HA generation/debounce state
-python3 scripts/test_ha_switch_protocol.py   # for HA/MQTT protocol changes
+python3 scripts/test_ha_switch_protocol.py   # Core/UI plus unchanged MQTT wire contract
 ./dev build                                  # full firmware build when needed
 ```
+
+The optional pinned `aioesphomeapi` integration script is a separate client-level
+check, not evidence of real Home Assistant or full hardware acceptance. Keep its
+results distinct from the pending matrix in
+`docs/stability/hardware-smoke-checklist.md`.
 
 Adding a new event: add it to `view_data_types.h` before `VIEW_EVENT_ALL`, add
 its category/payload/key descriptor in `view_event.c`, and update the stability

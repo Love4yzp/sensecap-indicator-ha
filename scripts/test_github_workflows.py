@@ -32,9 +32,10 @@ class GithubWorkflowTests(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertIn("cancel-in-progress:", workflow)
         self.assertNotIn("ubuntu-latest", workflow)
-        self.assertEqual(4, workflow.count("runs-on: ubuntu-24.04"))
+        self.assertEqual(5, workflow.count("runs-on: ubuntu-24.04"))
         self.assertIn("esp_idf_version: v5.5.6", workflow)
         self.assertIn("target: esp32s3", workflow)
+        self.assertIn("command: ./dev build", workflow)
         self.assertIn("platformio==6.2.0", workflow)
         platformio = (ROOT / "rp2040" / "platformio.ini").read_text(
             encoding="utf-8",
@@ -45,14 +46,61 @@ class GithubWorkflowTests(unittest.TestCase):
             platformio,
         )
         self.assertIn("startsWith(github.ref, 'refs/tags/v')", workflow)
-        self.assertIn("contents: write", workflow)
-        self.assertIn("gh release create", workflow)
-        self.assertIn("gh release upload", workflow)
+        self.assertEqual(2, workflow.count("contents: write"))
+        self.assertEqual(1, workflow.count("gh release create"))
+        self.assertEqual(1, workflow.count("gh release upload"))
 
         uses = re.findall(r"^\s*uses:\s*([^\s#]+)", workflow, re.MULTILINE)
-        self.assertGreaterEqual(len(uses), 8)
+        self.assertGreaterEqual(len(uses), 11)
         for action in uses:
             self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
+
+    def test_auto_tag_job_is_main_only_and_preserves_release_boundary(self) -> None:
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        jobs = workflow.split("\njobs:\n", 1)[1]
+        job_names = re.findall(r"^  ([a-z0-9-]+):$", jobs, re.MULTILINE)
+        self.assertEqual(["host", "esp32", "rp2040", "auto-tag", "release"], job_names)
+
+        auto_tag = workflow.split("\n  auto-tag:\n", 1)[1].split("\n  release:\n", 1)[0]
+        self.assertIn(
+            "if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+            auto_tag,
+        )
+        self.assertIn("needs: [host, esp32, rp2040]", auto_tag)
+        self.assertIn("permissions:\n      contents: write", auto_tag)
+        self.assertIn("fetch-depth: 0", auto_tag)
+        self.assertIn("python3 scripts/next_version.py", auto_tag)
+        self.assertIn('git ls-remote --tags origin "refs/tags/${VERSION}"', auto_tag)
+        self.assertIn('git config user.name "github-actions[bot]"', auto_tag)
+        self.assertIn('git tag -a "${VERSION}" -m "${VERSION}" "${GITHUB_SHA}"', auto_tag)
+        self.assertIn(
+            'git push origin "refs/tags/${VERSION}:refs/tags/${VERSION}"',
+            auto_tag,
+        )
+        self.assertNotIn("--force", auto_tag)
+        self.assertNotIn("gh release", auto_tag)
+
+    def test_firmware_version_comes_from_git_and_app_descriptor(self) -> None:
+        cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
+        main = (ROOT / "main" / "main.c").read_text(encoding="utf-8")
+        native = (ROOT / "main" / "ha" / "native_api_server.c").read_text(
+            encoding="utf-8",
+        )
+
+        self.assertIn(
+            'COMMAND git describe --tags --always --dirty --match "v[0-9]*"',
+            cmake,
+        )
+        self.assertIn('set(PROJECT_VER "${GIT_DESCRIBE_VERSION}")', cmake)
+        self.assertIn('set(PROJECT_VER "0.0.0-dev")', cmake)
+        self.assertLess(cmake.index("execute_process("), cmake.index("project.cmake"))
+        self.assertLess(cmake.index("project.cmake"), cmake.index("project(indicator_ha)"))
+        self.assertIn('#include "esp_app_desc.h"', main)
+        self.assertIn("esp_app_get_description()->version", main)
+        self.assertNotIn("#define VERSION", main)
+        self.assertNotIn("v1.1.0", main)
+        self.assertIn("esp_app_get_description()", native)
+        self.assertIn("app->version", native)
 
     def test_dependabot_updates_github_actions(self) -> None:
         text = DEPENDABOT.read_text(encoding="utf-8")

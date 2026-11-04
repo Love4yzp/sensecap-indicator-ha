@@ -51,9 +51,9 @@ the payload only while its subscribed handler is running.
 | --- | --- | --- | --- | --- |
 | `VIEW_EVENT_SCREEN_START` | Wi-Fi model, settings view | Wi-Fi, display, HA configuration views | `uint8_t` / `enum start_screen` | Critical command; bounded enqueue with explicit rejection. |
 | `VIEW_EVENT_TIME` | currently unused | currently unused | `bool` | Replaceable state. |
-| `VIEW_EVENT_WIFI_ST` | Wi-Fi callbacks/task | Wi-Fi view, MQTT controller, HA MQTT controller | `struct view_data_wifi_st` | Replaceable state, one latest value. |
+| `VIEW_EVENT_WIFI_ST` | Wi-Fi callbacks/task | Wi-Fi view, MQTT controller, HA MQTT controller, Native API | `struct view_data_wifi_st` | Replaceable state, one latest value. `has_ip` gates LAN transports; `is_network` is only the WAN ping result. |
 | `VIEW_EVENT_CITY` | currently unused | currently unused | documented city value | Replaceable state. |
-| `VIEW_EVENT_SENSOR_DATA` | RP2040 UART parser via sensor model | Sensor view and HA sensor publisher | `struct view_data_sensor_data` | Replaceable state, latest value per sensor type. |
+| `VIEW_EVENT_SENSOR_DATA` | RP2040 UART parser via sensor model | Sensor view and HA sensor/Core adapter | `struct view_data_sensor_data` | Replaceable state, latest value per sensor type. |
 | Sensor history events | currently unused | currently unused | trigger/history payload per existing manifest | Replaceable state per event. |
 | `VIEW_EVENT_WIFI_LIST` | Wi-Fi scan worker | Wi-Fi view | `struct view_data_wifi_list` with scan generation | Critical result; worker-owned bounded retry, then explicit failure completion. |
 | `VIEW_EVENT_WIFI_LIST_FAILED` | Wi-Fi model/scan worker | Wi-Fi view | `struct view_data_wifi_scan_failure` | Critical generation-tagged failure completion; clears only the matching pending scan. |
@@ -71,10 +71,10 @@ the payload only while its subscribed handler is running.
 | `VIEW_EVENT_SCREEN_CTRL` | Button and display timer | currently no registered consumer | `bool` | Replaceable state. |
 | `VIEW_EVENT_MQTT_ADDR_CHANGED` | HA configuration LVGL callback | HA configuration view | `NULL` | Critical configuration command. |
 | `VIEW_EVENT_HA_ADDR_DISPLAY` | HA MQTT initialization | HA configuration view | `NULL` | Replaceable state/refresh notification. |
-| `VIEW_EVENT_HA_SENSOR` | MQTT callback | no current consumer | `struct view_data_ha_sensor_data` | Replaceable state, latest per HA sensor index. |
-| `VIEW_EVENT_HA_SWITCH_ST` | HA LVGL widgets | HA switch controller | `struct view_data_ha_switch_command` | Critical generation-tagged user command. Continuous controls are debounced by the HA screen. |
-| `VIEW_EVENT_HA_SWITCH_SET` | MQTT callback and restore task | HA switch screen | `struct view_data_ha_switch_data` | Replaceable authoritative state, latest per switch index. |
-| `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` | HA switch controller | HA switch screen | `struct view_data_ha_switch_publish_result` | Critical generation-tagged command result with the controller's authoritative rollback value. |
+| `VIEW_EVENT_HA_SENSOR` | MQTT callback | no current consumer | `struct view_data_ha_sensor_data` | Replaceable state, latest per external HA sensor index; separate from local Core sensors. |
+| `VIEW_EVENT_HA_SWITCH_ST` | HA LVGL widgets | HA switch/Core adapter | `struct view_data_ha_switch_command` | Critical generation-tagged user command. Continuous controls are debounced by the HA screen. |
+| `VIEW_EVENT_HA_SWITCH_SET` | Core observer after boot/local/MQTT/Native commits | HA switch screen | `struct view_data_ha_switch_data` | Replaceable authoritative Core state, latest per control slot. |
+| `VIEW_EVENT_HA_SWITCH_PUBLISH_RESULT` | HA switch/Core adapter | HA switch screen | `struct view_data_ha_switch_publish_result` | Critical generation-tagged Core command result and authoritative value; the legacy name no longer means MQTT publish acceptance. |
 
 ## Interface and seam decision
 
@@ -139,7 +139,8 @@ cannot later disappear because subscription synchronization was busy.
 State keys are:
 
 - `VIEW_EVENT_SENSOR_DATA`: `sensor_type`;
-- `VIEW_EVENT_HA_SENSOR`: `index`;
+- `VIEW_EVENT_HA_SENSOR`: external HA sensor `index`;
+- `VIEW_EVENT_HA_SWITCH_SET`: local control-slot `index`;
 - all other state events: one latest value per event.
 
 `view_event_stats_get()` reports command enqueued/retries/rejected/dispatched,
@@ -162,15 +163,16 @@ interface:
 - display model/view and settings navigation;
 - RP2040 shutdown consumer and sensor model/view;
 - MQTT network-state controller;
-- Home Assistant configuration, MQTT, sensor, switch controller, and switch
-  screen;
+- Home Assistant configuration, MQTT, sensor/Core and switch/Core adapters,
+  switch screen, and Native API Wi-Fi lifecycle;
 - physical button screen-control, shutdown, and factory-reset paths.
 
 The MQTT controller's old `WIFI_EVENT_STA_DISCONNECTED` registration on the
 private view loop was not moved to the default Wi-Fi loop. That registration
 could never receive a Wi-Fi event on the old private loop; activating it now
-would be a behavior change. Network-false state continues to arrive through
-`VIEW_EVENT_WIFI_ST`.
+would be a behavior change. LAN state changes continue to arrive through
+`VIEW_EVENT_WIFI_ST`: `has_ip=false` stops MQTT and Native sessions independently,
+while `is_network=false` alone only records failed public-Internet reachability.
 
 ## Architecture enforcement
 
@@ -217,10 +219,13 @@ discard a later successful list. This replaces the former one-bit
 the state module interface.
 
 At Milestone 1 completion, HA switch screen slots tracked the last accepted
-value and suppressed programmatic `VALUE_CHANGED` re-entry. Milestone 2
-supersedes that local-only bookkeeping with generation-tagged synchronization,
-continuous-input debounce, explicit MQTT publish results, and keyed inbound
-state. See `docs/stability/milestone-2-ha-state-sync.md`.
+value and suppressed programmatic `VALUE_CHANGED` re-entry. Milestone 2 added
+generation-tagged synchronization, continuous-input debounce, explicit local
+command results, and keyed state. The current Entity Core integration retains
+that LVGL seam: results now mean Core commit rather than MQTT acceptance, keyed
+state can originate from touch/MQTT/Native, and transport-offline operation does
+not roll back an accepted local value. See
+`docs/stability/milestone-2-ha-state-sync.md`.
 
 ## Sleep/shutdown idempotency
 
@@ -303,6 +308,18 @@ No MQTT or Home Assistant broker was configured on the test device. MQTT/HA
 session recovery is therefore not recorded as verified and remains an explicit
 open hardware-integration check. This limitation does not block completion of
 the event-reliability stage.
+
+This is a historical result for the recorded Milestone 1 image, not by itself
+acceptance of the current Entity Core/Native/Noise implementation. Current Native
+and real-HA results are now recorded in the [2026-11-03 acceptance section](hardware-smoke-checklist.md#current-nativeha-acceptance-result-2026-11-03),
+including manual-IP onboarding, 12 entities, real-HA switch/number control,
+mDNS, dual-transport synchronization, and plaintext/Noise client checks. Host
+`aioesphomeapi` results remain distinct from real HA.
+
+That current record also retains the untested boundaries: HA automatic-discovery
+UI, real-HA PSK use, physical-touch offline operation, the both-off combination,
+HA/broker restart, WAN-only outage, resource measurements, and long-duration
+stability.
 
 ## Explicitly deferred
 
