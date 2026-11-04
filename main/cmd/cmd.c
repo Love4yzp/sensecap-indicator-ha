@@ -6,6 +6,8 @@
 #include "home_assistant_config.h"
 #include "ha.h"
 #include "ha_tls.h"
+#include "native_api.h"
+#include "native_config.h"
 #include "storage_nvs.h"
 #include "indicator_util.h"
 #include <ctype.h>
@@ -70,6 +72,7 @@ static int read_ha_config(int argc, char **argv) {
     ESP_LOGI(TAG, "| Client ID                    | %-40s |", ha_cfg.client_id);
     ESP_LOGI(TAG, "| MQTT username                | %-40s |", ha_cfg.username);
     ESP_LOGI(TAG, "| MQTT password                | %-40s |", ha_cfg.password[0] ? "****" : "(not set)");
+    ESP_LOGI(TAG, "| MQTT enabled                 | %-40s |", ha_mqtt_enabled_get() ? "yes" : "no");
     if (ha_tls_url_is_tls(ha_cfg.broker_url)) {
         size_t ca_len = 0;
         char *ca = ha_tls_ca_load(&ca_len);
@@ -186,7 +189,7 @@ static int mqtt_config_set(int argc, char **argv) {
         return 1;
     }
     esp_event_post_to(ha_cfg_event_handle, HA_CFG_EVENT_BASE, HA_CFG_SET, NULL, 0, portMAX_DELAY);
-    ESP_LOGI(TAG, "MQTT configuration saved. Reconnecting MQTT client.");
+    ESP_LOGI(TAG, "MQTT configuration saved; restart applies when enabled and LAN is ready.");
     return 0;
 }
 
@@ -291,7 +294,7 @@ static int mqtt_ca_set(int argc, char **argv) {
     }
     free(pem);
     ESP_LOGI(TAG, "CA stored (%d bytes). mqtts:// connections now verify against it.", len);
-    ESP_LOGI(TAG, "Reconnecting MQTT client.");
+    ESP_LOGI(TAG, "MQTT restart applies when enabled and LAN is ready.");
     esp_event_post_to(ha_cfg_event_handle, HA_CFG_EVENT_BASE, HA_CFG_SET, NULL, 0, portMAX_DELAY);
     return 0;
 }
@@ -306,6 +309,105 @@ static void register_mqtt_ca(void) {
         .hint     = NULL,
         .func     = &mqtt_ca_set,
         .argtable = &mqttca_args,
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
+
+static int mqtt_control(int argc, char **argv) {
+    if (argc == 2 && strcmp(argv[1], "status") == 0) {
+        ha_cfg_interface stored_cfg;
+        printf("MQTT enabled: %s\n", ha_mqtt_enabled_get() ? "yes" : "no");
+        printf("MQTT valid stored config: %s\n",
+               ha_cfg_get_stored(&stored_cfg) == ESP_OK ? "yes" : "no");
+        printf("MQTT client created: %s\n", mqtt_ha_instance.mqtt_client ? "yes" : "no");
+        printf("MQTT connected: %s\n", mqtt_ha_instance.mqtt_connected_flag ? "yes" : "no");
+        return 0;
+    }
+    if (argc == 2 && (strcmp(argv[1], "enable") == 0 || strcmp(argv[1], "disable") == 0)) {
+        bool enabled = strcmp(argv[1], "enable") == 0;
+        if (ha_mqtt_set_enabled(enabled) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to update MQTT enable setting");
+            return 1;
+        }
+        printf("MQTT %s.\n", enabled ? "enabled" : "disabled");
+        return 0;
+    }
+    printf("Usage: mqtt <enable|disable|status>\n");
+    return argc == 1 ? 0 : 1;
+}
+
+static void register_mqtt_control(void) {
+    const esp_console_cmd_t cmd = {
+        .command = "mqtt",
+        .help    = "Enable, disable or show MQTT transport status",
+        .hint    = NULL,
+        .func    = &mqtt_control,
+    };
+    ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
+}
+
+static void print_native_status(void) {
+    native_api_runtime_status_t status;
+    native_api_get_status(&status);
+    printf("Native enabled: %s\n", status.enabled ? "yes" : "no");
+    printf("Native LAN IP ready: %s\n", status.has_ip ? "yes" : "no");
+    printf("Native PSK configured: %s\n", status.psk_configured ? "yes" : "no");
+    printf("Native server listening: %s\n", status.running ? "yes" : "no");
+    printf("Native clients: %u\n", status.client_count);
+    if (status.enabled && status.psk_configured) {
+        printf("Native transport: Noise PSK required; plaintext is disabled.\n");
+    }
+}
+
+static void print_native_usage(void) {
+    printf("Usage:\n");
+    printf("  native <enable|disable|status>\n");
+    printf("  native psk <32-byte-key-as-base64>\n");
+    printf("  native psk clear\n");
+}
+
+static int native_control(int argc, char **argv) {
+    if (argc == 2 && strcmp(argv[1], "status") == 0) {
+        print_native_status();
+        return 0;
+    }
+    if (argc == 2 && (strcmp(argv[1], "enable") == 0 || strcmp(argv[1], "disable") == 0)) {
+        bool enabled = strcmp(argv[1], "enable") == 0;
+        if (native_api_set_enabled(enabled) != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to update Native enable setting");
+            return 1;
+        }
+        printf("Native %s; server lifecycle updated.\n",
+               enabled ? "enabled" : "disabled");
+        print_native_status();
+        return 0;
+    }
+    if (argc == 3 && strcmp(argv[1], "psk") == 0) {
+        esp_err_t err;
+        if (strcmp(argv[2], "clear") == 0) {
+            err = native_config_psk_clear();
+        } else {
+            err = native_config_psk_set_base64(argv[2]);
+        }
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Native PSK rejected or storage failed; expected 32-byte base64");
+            return 1;
+        }
+        native_api_configuration_changed();
+        printf("Native PSK configuration applied (secret not shown).\n");
+        print_native_status();
+        return 0;
+    }
+    print_native_usage();
+    return argc == 1 ? 0 : 1;
+}
+
+static void register_native_control(void) {
+    const esp_console_cmd_t cmd = {
+        .command = "native",
+        .help    = "Configure Native enable/PSK or show redacted status",
+        .hint    = NULL,
+        .func    = &native_control,
     };
     ESP_ERROR_CHECK(esp_console_cmd_register(&cmd));
 }
@@ -330,6 +432,8 @@ int indicator_cmd_init(void) {
     register_mqtt_help();
     register_mqtt_config();
     register_mqtt_ca();
+    register_mqtt_control();
+    register_native_control();
 
     esp_console_dev_uart_config_t hw_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_console_new_repl_uart(&hw_config, &repl_config, &repl));

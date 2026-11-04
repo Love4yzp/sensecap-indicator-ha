@@ -87,12 +87,10 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 		{
 			ESP_LOGI(TAG, "wifi event: WIFI_EVENT_STA_START");
 			struct view_data_wifi_st st;
-			st.is_connected = false;
-			st.is_network = false;
-			st.is_connecting = true;
-			memset(st.ssid, 0, sizeof(st.ssid));
-			st.rssi = 0;
+			wifi_model_state_start(&st);
 			_wifi_st_set(&st);
+			view_event_publish_state(
+				VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 			esp_wifi_connect();
 			break;
@@ -112,6 +110,8 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 			st.rssi = -50; // todo
 			st.is_connected = true;
 			st.is_connecting = false;
+			st.has_ip = false;
+			st.is_network = false;
 			_wifi_st_set(&st);
 
 			view_event_publish_state(
@@ -131,8 +131,15 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 		case WIFI_EVENT_STA_DISCONNECTED:
 		{
 			ESP_LOGI(TAG, "wifi event: WIFI_EVENT_STA_DISCONNECTED");
+			bool retrying = (wifi_retry_max == -1) || s_retry_num < wifi_retry_max;
+			struct view_data_wifi_st st;
+			_wifi_st_get(&st);
+			wifi_model_state_disconnected(&st, retrying);
+			_wifi_st_set(&st);
+			view_event_publish_state(
+				VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
-			if((wifi_retry_max == -1) || s_retry_num < wifi_retry_max)
+			if(retrying)
 			{
 				esp_wifi_connect();
 				s_retry_num++;
@@ -140,17 +147,6 @@ static void _wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t 
 			}
 			else
 			{
-				struct view_data_wifi_st st;
-
-				_wifi_st_get(&st);
-				st.is_connected = false;
-				st.is_network = false;
-				st.is_connecting = false;
-				_wifi_st_set(&st);
-
-				view_event_publish_state(
-					VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
-
 				struct view_data_wifi_connet_ret_msg msg;
 				msg.ret = 1;
 				strcpy(msg.msg, "Connection failure");
@@ -174,6 +170,13 @@ static void _ip_event_handler(void* arg, esp_event_base_t event_base, int32_t ev
 		ip_event_got_ip_t* event = (ip_event_got_ip_t*)event_data;
 		ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
 		s_retry_num = 0;
+
+		struct view_data_wifi_st st;
+		_wifi_st_get(&st);
+		wifi_model_state_got_ip(&st);
+		_wifi_st_set(&st);
+		view_event_publish_state(
+			VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 		xSemaphoreGive(_g_net_check_sem);
 	}
@@ -203,11 +206,11 @@ static int _wifi_connect(const char* p_ssid, const char* p_password, int retry_n
 
 	_g_wifi_model.is_cfg = true;
 
-	struct view_data_wifi_st st = {0};
-	st.is_connected = false;
-	st.is_connecting = false;
-	st.is_network = false;
+	struct view_data_wifi_st st;
+	wifi_model_state_reset(&st);
 	_wifi_st_set(&st);
+	view_event_publish_state(
+		VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 
 	ESP_ERROR_CHECK(esp_wifi_start());
 
@@ -218,10 +221,8 @@ static int _wifi_connect(const char* p_ssid, const char* p_password, int retry_n
 static void _wifi_cfg_restore(void) {
 	_g_wifi_model.is_cfg = false;
 
-	struct view_data_wifi_st st = {0};
-	st.is_connected = false;
-	st.is_connecting = false;
-	st.is_network = false;
+	struct view_data_wifi_st st;
+	wifi_model_state_reset(&st);
 	_wifi_st_set(&st);
 
 	view_event_publish_state(
@@ -233,10 +234,8 @@ static void _wifi_cfg_restore(void) {
 static void _wifi_shutdown(void) {
 	_g_wifi_model.is_cfg = false;
 
-	struct view_data_wifi_st st = {0};
-	st.is_connected = false;
-	st.is_connecting = false;
-	st.is_network = false;
+	struct view_data_wifi_st st;
+	wifi_model_state_reset(&st);
 	_wifi_st_set(&st);
 
 	view_event_publish_state(
@@ -279,18 +278,9 @@ static void _ping_end(esp_ping_handle_t hdl, void* args) {
 	esp_ping_delete_session(hdl);
 
 	struct view_data_wifi_st st;
-	if(received > 0)
-	{
-		_wifi_st_get(&st);
-		st.is_network = true;
-		_wifi_st_set(&st);
-	}
-	else
-	{
-		_wifi_st_get(&st);
-		st.is_network = false;
-		_wifi_st_set(&st);
-	}
+	_wifi_st_get(&st);
+	st.is_network = st.has_ip && received > 0;
+	_wifi_st_set(&st);
 	view_event_publish_state(
 		VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st));
 	_g_ping_done = true;
@@ -321,7 +311,7 @@ static void _indicator_wifi_task(void* p_arg) {
 		xSemaphoreTake(_g_net_check_sem, pdMS_TO_TICKS(5000));
 		_wifi_st_get(&st);
 
-		if(st.is_connected)
+		if(st.has_ip)
 		{
 			if(_g_ping_done)
 			{

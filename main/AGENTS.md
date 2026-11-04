@@ -7,7 +7,7 @@ Agent 开发指南。在修改代码之前请先读完本文件。
 ## 项目概述
 
 ESP32-S3 + RP2040 固件，LVGL 9.6.0~1（ESP Component Manager 管理），ESP-IDF v5.5.6，FreeRTOS。
-显示屏：480×480 RGB565，触摸输入。Home Assistant 通过 MQTT 集成。
+显示屏：480×480 RGB565，触摸输入。Home Assistant 可通过 ESPHome Native API 或既有 MQTT 集成，两条传输可独立启停并共存。
 
 ---
 
@@ -15,7 +15,7 @@ ESP32-S3 + RP2040 固件，LVGL 9.6.0~1（ESP Component Manager 管理），ESP-
 
 ```
 main/
-  ha/           HA 域：MQTT 订阅/发布、switch/sensor/arc 控件
+  ha/           HA 域：Entity Registry/Core、MQTT、Native API、控件
   wifi/         WiFi 域：扫描、连接、状态显示
   sensor/       Sensor 域：SHT41/SGP40/SCD41 数据展示
   display/      Display 域：亮度、睡眠模式
@@ -29,7 +29,7 @@ main/
   util/         公共工具函数
 
   main.c              入口
-  indicator_model.c   全局模型初始化（各域 model_init 汇总）
+  indicator_model.c   全局模型初始化（Core/HA/Native 先于 Wi-Fi/MQTT）
   indicator_view.c    全局视图初始化（各域 view_init 汇总）
   indicator_enabler.h 功能开关（#include 各域头文件）
   lv_port.c           ⚠️ BSP 硬件边界，见禁区说明
@@ -41,7 +41,8 @@ main/
 
 域的文件命名因域而异，没有统一的 `<domain>_view.c` 规律。实际示例：
 ```
-main/ha/        ha.h, ha_mqtt.c, ha_sensor.c, ha_switch_screen.c, ha_config.c
+main/ha/        entity_registry.*, entity_core.*, ha_mqtt.c, native_api_server.c,
+                native_config.c, ha_sensor.c, ha_switch_screen.c, ha_config.c
 main/wifi/      wifi.h, wifi_model.c, wifi_view.c, wifi_list_screen.c, wifi_connect_screen.c
 main/sensor/    sensor_model.h, sensor_model.c, sensor_view.h, sensor_view.c
 main/display/   display.h, display_model.c, display_view.h, display_view.c
@@ -170,6 +171,17 @@ event loop 或 timeout。启动顺序在 LVGL 初始化后调用 `view_event_ini
 
 ---
 
+## HA Entity Core 与双传输
+
+- `entity_registry.c` 固定 4 个本机 sensor、6 个 switch、2 个 number 的身份；`entity_core.c` 是唯一权威状态源。状态仅在 RAM，控制冷启动为 0，sensor 在首个有效样本前为 missing。
+- 本地命令通过 Core 校验并提交后即生效；MQTT 或 HA 离线只停止对应同步，不回滚已接受的本地值。view-event 投递失败或 Core 结果超时仍属于本地 UI 同步失败。
+- 保留 `ha_switch_screen.c` 的 `switch_slot_t`、`widget_update_fn`、`suppress_post` 和 `ha_switch_sync` LVGL seam。Core、Registry、MQTT/Native adapter 不拥有 LVGL 对象；Native socket read/write、select 和 keepalive 留在 `native_api` server task，不进入 view-event handler。
+- MQTT 与 Native 使用独立 NVS enable key，可单独启停或同时运行；切换一路不得重启另一路或清空 Core。Fresh/缺少 `native-enabled` key 时 Native 默认启用，显式 false 仍关闭；Fresh MQTT 只在存在有效 Broker 配置时默认启用。
+- Native/MQTT/mDNS 使用 `view_data_wifi_st.has_ip` 判断 LAN 可用；`is_network` 仅是公网 ping 结果，不得作为本地服务启动条件。
+- Native 无 PSK 时是明文且无认证，必须文档化该风险；配置 PSK 后仅接受 Noise，禁止静默降级。详细协议、命令和安全边界见 `main/ha/README.md`。
+
+---
+
 ## LVGL 使用规则
 
 | 规则 | 说明 |
@@ -217,8 +229,15 @@ python3 scripts/architecture_scan.py
 # 2. 构建（必须 0 error）
 ./dev build
 
-# 3. HA/MQTT 协议改动时额外运行
+# 3. HA/MQTT/Native 改动时额外运行
+python3 scripts/test_entity_core.py
+python3 scripts/test_ha_transport_config.py
+python3 scripts/test_native_api_protocol.py
+python3 scripts/test_native_api_noise.py
 python3 scripts/test_ha_switch_protocol.py
+
+# 4. 项目知识或稳定性文档改动时运行
+python3 scripts/test_project_knowledge.py
 ```
 
 ---

@@ -37,8 +37,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_CONNECTED");
             instance_ptr->mqtt_connected_flag = true;
-            ha_sensor_subscribe(client);
-            ha_switch_subscribe(client);
+            mqtt_instance_connected(instance_ptr, client);
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -78,78 +77,94 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
     }
 }
 
+static void _mqtt_ha_connected(instance_mqtt *instance)
+{
+    ha_sensor_subscribe(instance->mqtt_client);
+    ha_switch_subscribe(instance->mqtt_client);
+}
+
+static void _mqtt_ha_stop(instance_mqtt *instance)
+{
+    if (instance->mqtt_cfg != NULL) {
+        free(instance->mqtt_cfg);
+        instance->mqtt_cfg = NULL;
+    }
+    if (s_tls_ca != NULL) {
+        free(s_tls_ca);
+        s_tls_ca = NULL;
+    }
+}
+
+static void _mqtt_ha_post_instance_event(enum MQTT_APP_EVENT event)
+{
+    mqtt_instance_request(instance_ptr, event);
+}
+
+static void _mqtt_ha_reconfigure(void)
+{
+    instance_ptr->is_using = ha_mqtt_enabled_get();
+    enum MQTT_APP_EVENT event = instance_ptr->is_using && get_mqtt_net_flag()
+        ? MQTT_APP_RESTART : MQTT_APP_STOP;
+    _mqtt_ha_post_instance_event(event);
+}
+
 static void handle_wifi_status_change(const struct view_data_wifi_st *wifi_status)
 {
-    ESP_LOGI(TAG, "WiFi status changed. Connected: %d", wifi_status->is_network);
-    if (wifi_status->is_network && instance_ptr->is_using) {
-        esp_event_post_to(mqtt_app_event_handle, MQTT_APP_EVENT_BASE, MQTT_APP_START, &instance_ptr, sizeof(instance_mqtt_t), portMAX_DELAY);
-    } else {
-        /* TODO: Implement MQTT shutdown logic if needed */
+    if (wifi_status == NULL) {
+        return;
     }
+    ESP_LOGI(TAG, "WiFi status changed. LAN IP: %d, Internet: %d",
+             wifi_status->has_ip, wifi_status->is_network);
+    instance_ptr->is_using = ha_mqtt_enabled_get();
+    enum MQTT_APP_EVENT event = wifi_status->has_ip && instance_ptr->is_using
+        ? MQTT_APP_START : MQTT_APP_STOP;
+    _mqtt_ha_post_instance_event(event);
 }
 
 static void view_event_handler(
     void *handler_args, enum view_event_id id, const void *event_data)
 {
     if (id == VIEW_EVENT_WIFI_ST) {
-        ESP_LOGI(TAG, "event: VIEW_EVENT_WIFI_ST");
-        handle_wifi_status_change((struct view_data_wifi_st *)event_data);
+        handle_wifi_status_change((const struct view_data_wifi_st *)event_data);
     }
 }
 
 static void _cfg_event_handler(void *handler_args, esp_event_base_t base, int32_t id, void *event_data)
 {
-    switch (id) {
-        case HA_CFG_SET:
-            ESP_LOGI(TAG, "event: HA_CFG_BROKER_SET");
-            esp_event_post_to(mqtt_app_event_handle, MQTT_APP_EVENT_BASE, MQTT_APP_RESTART, &instance_ptr, sizeof(instance_mqtt_t), portMAX_DELAY);
-            break;
-        case HA_CFG_BROKER_CHANGED: {
-            if (!event_data) {
-                break;
-            }
-            const char *broker_url = (const char *)event_data;
-            ESP_LOGI(TAG, "HA_CFG_BROKER_CHANGED: %s", broker_url);
-            esp_mqtt_client_stop(instance_ptr->mqtt_client);
-            esp_mqtt_client_set_uri(instance_ptr->mqtt_client, broker_url);
-            esp_mqtt_client_start(instance_ptr->mqtt_client);
-            break;
-        }
-        default:
-            break;
+    if (id == HA_CFG_SET || id == HA_CFG_BROKER_CHANGED) {
+        _mqtt_ha_reconfigure();
     }
+}
+
+esp_err_t ha_mqtt_set_enabled(bool enabled)
+{
+    esp_err_t err = ha_mqtt_enabled_set(enabled);
+    if (err != ESP_OK) {
+        return err;
+    }
+    instance_ptr->is_using = enabled;
+    _mqtt_ha_reconfigure();
+    return ESP_OK;
 }
 
 static void _mqtt_ha_start(instance_mqtt *instance)
 {
-    if (!get_mqtt_net_flag()) {
+    mqtt_instance_stop(instance);
+    if (!get_mqtt_net_flag() || !instance->is_using || !ha_mqtt_enabled_get()) {
         return;
     }
 
-    if (instance->mqtt_client != NULL) {
-        esp_mqtt_client_stop(instance->mqtt_client);
-        esp_mqtt_client_destroy(instance->mqtt_client);
-        instance->mqtt_client = NULL;
-    }
-
-    if (instance->mqtt_cfg != NULL) {
-        free(instance->mqtt_cfg);
-        instance->mqtt_cfg = NULL;
-    }
-
-    /* Safe to release only after the client referencing it was destroyed. */
-    if (s_tls_ca != NULL) {
-        free(s_tls_ca);
-        s_tls_ca = NULL;
-    }
-
     ha_cfg_interface hf_cfg;
-    if (ha_cfg_get(&hf_cfg) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get HA configuration");
+    if (ha_cfg_get_stored(&hf_cfg) != ESP_OK) {
+        ESP_LOGW(TAG, "MQTT has no valid stored broker configuration");
         return;
     }
 
     instance->mqtt_cfg = (esp_mqtt_client_config_t *)malloc(sizeof(esp_mqtt_client_config_t));
+    if (instance->mqtt_cfg == NULL) {
+        ESP_LOGE(TAG, "Failed to allocate MQTT configuration");
+        return;
+    }
     *instance->mqtt_cfg = (esp_mqtt_client_config_t){
         .broker.address.uri = hf_cfg.broker_url,
         .credentials.client_id = hf_cfg.client_id,
@@ -192,12 +207,20 @@ static void _mqtt_ha_start(instance_mqtt *instance)
     instance->mqtt_client = esp_mqtt_client_init(instance->mqtt_cfg);
     if (instance->mqtt_client == NULL) {
         ESP_LOGE(TAG, "Failed to initialize MQTT client");
+        mqtt_instance_stop(instance);
         return;
     }
-    esp_mqtt_client_register_event(instance->mqtt_client, ESP_EVENT_ANY_ID, instance->mqtt_event_handler, NULL);
+    esp_err_t register_result = esp_mqtt_client_register_event(
+        instance->mqtt_client, ESP_EVENT_ANY_ID, instance->mqtt_event_handler, NULL);
+    if (register_result != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to register MQTT event handler: %s", esp_err_to_name(register_result));
+        mqtt_instance_stop(instance);
+        return;
+    }
     esp_err_t start_result = esp_mqtt_client_start(instance->mqtt_client);
     if (start_result != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start MQTT client: %s", esp_err_to_name(start_result));
+        mqtt_instance_stop(instance);
     } else {
         ESP_LOGI(TAG, "MQTT client started successfully");
     }
@@ -227,7 +250,9 @@ int indicator_ha_model_init(void)
         .mqtt_cfg = NULL,
         .mqtt_event_handler = mqtt_event_handler,
         .mqtt_starter = _mqtt_ha_start,
-        .is_using = true,
+        .mqtt_stopper = _mqtt_ha_stop,
+        .mqtt_connected_handler = _mqtt_ha_connected,
+        .is_using = ha_mqtt_enabled_get(),
     };
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register_with(ha_cfg_event_handle, HA_CFG_EVENT_BASE, ESP_EVENT_ANY_ID, _cfg_event_handler, NULL, NULL));

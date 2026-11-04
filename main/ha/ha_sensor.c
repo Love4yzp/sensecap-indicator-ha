@@ -1,4 +1,6 @@
 #include "ha_sensor.h"
+#include "entity_core.h"
+#include "entity_registry.h"
 #include "ha_mqtt.h"
 #include "view_data.h"
 #include "view_event.h"
@@ -20,12 +22,29 @@ typedef struct ha_sensor_entity {
 
 static ha_sensor_entity_t ha_sensor_entities[CONFIG_HA_SENSOR_ENTITY_NUM];
 
+static bool sensor_entity_index(
+    enum sensor_data_type sensor_type, uint8_t *entity_index)
+{
+    switch (sensor_type) {
+        case SHT41_SENSOR_TEMP:
+            *entity_index = ENTITY_INDEX_SENSOR_TEMP;
+            return true;
+        case SHT41_SENSOR_HUMIDITY:
+            *entity_index = ENTITY_INDEX_SENSOR_HUMIDITY;
+            return true;
+        case SGP40_SENSOR_TVOC:
+            *entity_index = ENTITY_INDEX_SENSOR_TVOC;
+            return true;
+        case SCD41_SENSOR_CO2:
+            *entity_index = ENTITY_INDEX_SENSOR_CO2;
+            return true;
+        default:
+            return false;
+    }
+}
+
 static void publish_sensor_data(const struct view_data_sensor_data *sensor_data)
 {
-    if (!mqtt_ha_instance.mqtt_connected_flag) {
-        return;
-    }
-
     char data_buf[MAX_DATA_BUF_LEN];
     int len = 0;
     const char *topic = CONFIG_SENSOR_BUILDIN_TOPIC_DATA;
@@ -53,20 +72,42 @@ static void publish_sensor_data(const struct view_data_sensor_data *sensor_data)
             return;
     }
 
-    if (len > 0 && len < MAX_DATA_BUF_LEN) {
-        esp_mqtt_client_publish(mqtt_ha_instance.mqtt_client, topic, data_buf, len, 0, 0);
-    } else {
+    if (len <= 0 || len >= MAX_DATA_BUF_LEN) {
         ESP_LOGE(TAG, "Failed to format sensor data");
+        return;
+    }
+    esp_err_t result = mqtt_publish_enqueue(
+        &mqtt_ha_instance, topic, data_buf, (size_t)len);
+    if (result != ESP_OK) {
+        ESP_LOGW(TAG, "MQTT sensor state dropped: %d", result);
     }
 }
 
 static void view_event_handler(
     void *handler_args, enum view_event_id id, const void *event_data)
 {
-    if (id == VIEW_EVENT_SENSOR_DATA) {
-        ESP_LOGI(TAG, "event: VIEW_EVENT_SENSOR_DATA");
-        publish_sensor_data((struct view_data_sensor_data *)event_data);
+    if (id != VIEW_EVENT_SENSOR_DATA) {
+        return;
     }
+
+    ESP_LOGI(TAG, "event: VIEW_EVENT_SENSOR_DATA");
+    const struct view_data_sensor_data *sensor_data = event_data;
+    uint8_t entity_index;
+    if (!sensor_entity_index(sensor_data->sensor_type, &entity_index) ||
+        !entity_core_set_sensor(entity_index, sensor_data->value)) {
+        ESP_LOGW(TAG, "Invalid sensor value: type=%d", sensor_data->sensor_type);
+        return;
+    }
+
+    entity_core_snapshot_t snapshot;
+    if (!entity_core_get_snapshot(entity_index, &snapshot)) {
+        return;
+    }
+    struct view_data_sensor_data authoritative_data = {
+        .sensor_type = sensor_data->sensor_type,
+        .value = snapshot.value,
+    };
+    publish_sensor_data(&authoritative_data);
 }
 
 void ha_sensor_init(void)
@@ -121,20 +162,9 @@ int ha_sensor_on_mqtt_data(const char *topic, int topic_len, const char *data, i
 
                 ESP_LOGI(TAG, "MQTT message: sensor %s is %s", ha_sensor_entities[i].key, sensor_data.value);
                 /*
-                 * NOTE: VIEW_EVENT_HA_SENSOR currently has NO consumer, so this
-                 * value is parsed and posted but never shown. Wiring it up turns
-                 * the Indicator into a generic HA dashboard: display ANY entity
-                 * pushed from Home Assistant over MQTT, with no physical sensor
-                 * attached to the device (the use case in issue #5).
-                 *
-                 * To wire it up:
-                 *   1. ha_switch_screen.c::_create_sensor_card already builds the
-                 *      "N/A" data labels on NAV_TILE_HA_MIX but discards the handle.
-                 *      Store each label keyed by card index (cf. the switch_slot_t
-                 *      pattern).
-                 *   2. Register a VIEW_EVENT_HA_SENSOR handler that, under the LVGL
-                 *      lock, does lv_label_set_text(labels[data->index], data->value).
-                 *   3. Make sensor_data.index here map to the intended card slot.
+                 * VIEW_EVENT_HA_SENSOR currently has no consumer. These are
+                 * external HA sensor values, not the four local sensor Core
+                 * entities, so the existing placeholder cards stay unchanged.
                  */
                 view_event_publish_state(
                     VIEW_EVENT_HA_SENSOR, &sensor_data, sizeof(sensor_data));

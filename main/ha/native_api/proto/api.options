@@ -1,0 +1,33 @@
+# All retained variable-length fields have fixed storage and explicit limits.
+
+HelloRequest.client_info max_length:64
+HelloResponse.server_info max_length:32
+HelloResponse.name max_length:31
+
+DeviceInfoResponse.name max_length:31
+DeviceInfoResponse.mac_address max_length:17
+DeviceInfoResponse.esphome_version max_length:32
+DeviceInfoResponse.compilation_time max_length:25
+DeviceInfoResponse.model max_length:127
+DeviceInfoResponse.project_name max_length:127
+DeviceInfoResponse.project_version max_length:127
+DeviceInfoResponse.manufacturer max_length:20
+DeviceInfoResponse.friendly_name max_length:120
+DeviceInfoResponse.suggested_area max_length:120
+
+ListEntitiesSensorResponse.object_id max_length:120
+ListEntitiesSensorResponse.name max_length:120
+ListEntitiesSensorResponse.icon max_length:63
+ListEntitiesSensorResponse.unit_of_measurement max_length:63
+ListEntitiesSensorResponse.device_class max_length:47
+
+ListEntitiesSwitchResponse.object_id max_length:120
+ListEntitiesSwitchResponse.name max_length:120
+ListEntitiesSwitchResponse.icon max_length:63
+ListEntitiesSwitchResponse.device_class max_length:47
+
+ListEntitiesNumberResponse.object_id max_length:120
+ListEntitiesNumberResponse.name max_length:120
+ListEntitiesNumberResponse.icon max_length:63
+ListEntitiesNumberResponse.unit_of_measurement max_length:63
+ListEntitiesNumberResponse.device_class max_length:47

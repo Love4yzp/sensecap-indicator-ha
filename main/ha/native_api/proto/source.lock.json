@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "esphome": {
+    "repository": "https://github.com/esphome/esphome",
+    "version": "2026.10.2",
+    "commit": "9a78022ded2285861f10de50168a0aa71e2a4322",
+    "files": {
+      "api.proto": {
+        "path": "esphome/components/api/api.proto",
+        "sha256": "52d1831f8621c436dd15d8d19b6eaf6a632fe13e4bb00966f8b31dba39680917",
+        "size": 109589
+      },
+      "api_options.proto": {
+        "path": "esphome/components/api/api_options.proto",
+        "sha256": "1206b5d2bf815a2ad68c180a4dd5a0b42579e6b3f4fa55d389d80699d95ed20f",
+        "size": 6475
+      }
+    }
+  },
+  "home_assistant": {
+    "repository": "https://github.com/home-assistant/core",
+    "version": "2026.10.4",
+    "commit": "357cae5c598dfcd7a0ea7dc5b1facccd4ec6037b",
+    "manifest_path": "homeassistant/components/esphome/manifest.json",
+    "manifest_sha256": "63b31909e50d9fff7ef48a312d30a0515c8444871b730e05698ed710614b4ff5",
+    "aioesphomeapi_version": "46.6.0",
+    "aioesphomeapi_commit": "26451b45fff576283826fd326845e5108f8ea296"
+  },
+  "generator": {
+    "nanopb": "0.4.9.1",
+    "protobuf": "7.36.2",
+    "grpcio-tools": "1.85.1",
+    "protoc": "35.1"
+  }
+}

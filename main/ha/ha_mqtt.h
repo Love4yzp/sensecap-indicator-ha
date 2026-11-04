@@ -18,6 +18,7 @@ enum HA_CFG_EVENT {
     HA_CFG_EVENT_ALL,
 };
 
+esp_err_t ha_mqtt_set_enabled(bool enabled);
 int indicator_ha_model_init(void);
 int indicator_ha_view_init(void);
 

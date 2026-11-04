@@ -28,7 +28,8 @@ enum start_screen {
 struct view_data_wifi_st {
     bool    is_connected;
     bool    is_connecting;
-    bool    is_network;
+    bool    has_ip;    /* LAN ready; set only after IP_EVENT_STA_GOT_IP. */
+    bool    is_network; /* Public Internet ping result, independent of has_ip. */
     char    ssid[33];
     int8_t  rssi;
 };

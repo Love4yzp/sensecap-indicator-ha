@@ -1,5 +1,8 @@
 #include "wifi.h"
 #include "indicator_enabler.h"
+#include "entity_core.h"
+#include "native_api.h"
+#include "esp_err.h"
 
 int indicator_model_init(void) {
 #ifdef STORAGE_NVS_H
@@ -27,14 +30,17 @@ int indicator_model_init(void) {
 	indicator_cmd_init();
 #endif
 
+#ifdef HA_H
+	ESP_ERROR_CHECK(entity_core_init() ? ESP_OK : ESP_FAIL);
+	indicator_ha_model_init();
+	ESP_ERROR_CHECK(native_api_init());
+#endif
+
 #ifdef WIFI_H
-	indicator_wifi_model_init();
 	#ifdef MQTT_H
 	indicator_mqtt_init();
-		#ifdef HA_H
-	indicator_ha_model_init();
-		#endif
 	#endif
+	indicator_wifi_model_init();
 
 #endif
 
