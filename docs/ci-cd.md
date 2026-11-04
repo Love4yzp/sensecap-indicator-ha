@@ -5,12 +5,12 @@ verification and release pipeline.
 
 ## Trigger matrix
 
-| Trigger | Host checks | ESP32-S3 build | RP2040 build | GitHub release |
-| --- | --- | --- | --- | --- |
-| Pull request to `main` | Yes | Yes | Yes | No |
-| Push to `main` | Yes | Yes | Yes | No |
-| Push tag matching `v*` | Yes | Yes | Yes | Yes |
-| Manual dispatch | Yes | Yes | Yes | Only when dispatched from a `v*` tag |
+| Trigger | Host checks | ESP32-S3 build | RP2040 build | Automatic tag | GitHub release |
+| --- | --- | --- | --- | --- | --- |
+| Pull request to `main` | Yes | Yes | Yes | No | No |
+| Push to `main` | Yes | Yes | Yes | After all three jobs succeed | No; the new tag starts a separate run |
+| Push tag matching `v*` | Yes | Yes | Yes | No | Yes |
+| Manual dispatch | Yes | Yes | Yes | No | Only when dispatched from a `v*` tag |
 
 New commits cancel older in-progress runs for the same branch. Tag builds are
 never cancelled because they may be publishing immutable release evidence.
@@ -41,17 +41,53 @@ the firmware toolchain.
 
 Artifacts from ordinary CI runs are retained for 14 days.
 
-## Release process
+## Automatic SemVer tags
 
-Create and push an annotated version tag after `main` is green:
+After a push to `main` passes Host checks, ESP32-S3 firmware, and RP2040
+firmware, `auto-tag` runs `scripts/next_version.py` against the complete Git
+history. It selects the numerically highest strict `vX.Y.Z` tag and ignores
+other tag formats. With no valid tag, the baseline is `v0.0.0`.
+
+Commits in `<latest>..HEAD` determine the increment, or all of `HEAD` when no
+valid tag exists:
+
+1. A `BREAKING CHANGE:` footer or a Conventional Commit `!` marker selects a
+   major increment.
+2. Otherwise, any `feat:` commit selects a minor increment.
+3. Every other commit selects a patch increment.
+
+No new commits is an error and does not create a tag. Before creating the
+annotated tag as `github-actions[bot]`, the job checks origin again for the
+candidate tag. An existing remote tag stops the job; the subsequent non-force
+push also protects against a concurrent creator. Re-running therefore cannot
+move an existing tag or create a duplicate.
+
+The local tests exercise version calculation in temporary Git repositories and
+check the workflow definition. The GitHub-hosted automatic tag path has not yet
+been observed end to end; verify its first post-merge `main` run before treating
+that automation as operationally proven.
+
+## Firmware version source
+
+At configure time, the root CMake file sets `PROJECT_VER` from:
 
 ```bash
-git tag -a vX.Y.Z -m "vX.Y.Z"
-git push origin vX.Y.Z
+git describe --tags --always --dirty --match 'v[0-9]*'
 ```
 
-The release job downloads the exact firmware produced by the tag build and
-publishes:
+A clean checkout of an exact matching tag uses that tag as the app version.
+Other checkouts retain the describe development suffix. If Git or repository
+metadata is unavailable, the explicit fallback is `0.0.0-dev`, so source-archive
+builds still work. The boot banner and Native `DeviceInfo.project_version` both
+read the resulting ESP-IDF app descriptor; there is no separate firmware version
+constant.
+
+## Release process
+
+A newly pushed automatic tag triggers this same workflow. Its tag build creates
+fresh firmware artifacts, and the existing `release` job remains the only
+GitHub Release publisher. It downloads the exact firmware produced by that tag
+build and publishes:
 
 - an ESP32-S3 archive;
 - an RP2040 archive;
@@ -59,13 +95,24 @@ publishes:
 - `manifest.json`;
 - `SHA256SUMS`.
 
-Re-running a tag workflow updates existing release assets with `--clobber`
-instead of creating duplicate releases.
+To publish an existing `v*` tag manually, dispatch `firmware.yml` from that tag,
+for example with `gh workflow run firmware.yml --ref vX.Y.Z`. Alternatively,
+re-run the tag's existing workflow from GitHub Actions. Re-running updates
+existing release assets with `--clobber` instead of creating duplicate releases.
+
+## Main protection
+
+The existing `main` branch protection remains unchanged. It requires strict,
+up-to-date `Host checks`, `ESP32-S3 firmware`, and `RP2040 firmware` checks;
+blocks force pushes and deletion; and requires review conversations to be
+resolved. `enforce_admins=false` remains available for administrator emergency
+handling. Automatic tagging happens after the protected push and does not
+replace review or required checks.
 
 ## Security and maintenance
 
 - Workflow permissions default to `contents: read`.
-- Only the tag-only release job receives `contents: write`.
+- Only `auto-tag` and the tag-only `release` job receive `contents: write`.
 - Actions are pinned to immutable commit SHAs.
 - Dependabot checks GitHub Actions updates monthly.
 - The workflow never flashes attached hardware and does not read deployment

@@ -122,6 +122,41 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  auto-tag:
+    name: Create next SemVer tag
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [host, esp32, rp2040]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Calculate next version
+        id: version
+        run: |
+          git fetch --tags origin
+          version="$(python3 scripts/next_version.py)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create and push annotated tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          remote_tag="$(git ls-remote --tags origin "refs/tags/${VERSION}")"
+          if [[ -n "${remote_tag}" ]]; then
+            echo "Tag ${VERSION} already exists on origin; refusing to overwrite or recreate it."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${VERSION}" -m "${VERSION}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${VERSION}:refs/tags/${VERSION}"
+
   release:
     name: Publish release
     if: startsWith(github.ref, 'refs/tags/v')

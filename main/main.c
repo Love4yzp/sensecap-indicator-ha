@@ -13,13 +13,13 @@
 // limitations under the License.
 
 #include "bsp_board.h"
+#include "esp_app_desc.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lv_port.h"
 #include "view_event.h"
 
-#define VERSION		 "v1.1.0"
 #define LOG_MEM_INFO 1
 #define SENSECAP \
 	"\n\
@@ -43,7 +43,7 @@ static const char* TAG = "app_main";
 void app_main(void) {
 	ESP_LOGI("TAG", "system start");
 
-	ESP_LOGI("", SENSECAP, VERSION, __DATE__, __TIME__);
+	ESP_LOGI("", SENSECAP, esp_app_get_description()->version, __DATE__, __TIME__);
 
 	ESP_ERROR_CHECK(bsp_board_init());
 	lv_port_init();

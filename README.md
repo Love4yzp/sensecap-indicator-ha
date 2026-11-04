@@ -53,7 +53,10 @@ single-chip flashing.
 
 ### Build from source
 
-The ESP32-S3 build uses ESP-IDF v5.5.6.
+The ESP32-S3 build uses ESP-IDF v5.5.6. The app version comes from
+`git describe --tags --always --dirty --match 'v[0-9]*'`; an exact release-tag
+checkout uses that tag, while builds without Git metadata fall back to
+`0.0.0-dev`. The boot banner and Native device information share this version.
 
 ```bash
 git clone https://github.com/Love4yzp/sensecap-indicator-ha.git
@@ -300,14 +303,20 @@ cmake --build sim/build -j4
 ```
 
 GitHub CI runs host checks and clean builds for both chips on pull requests and
-pushes to `main`. Build artifacts are kept for 14 days. A `v*` tag also creates
-checksummed release packages. See [`docs/ci-cd.md`](docs/ci-cd.md) for details.
+pushes to `main`. After a successful `main` push, the configured auto-tag job
+chooses the next SemVer from the highest `vX.Y.Z` tag: breaking commits select
+major, otherwise `feat:` selects minor, and all other commits select patch. The
+annotated tag starts a separate tag workflow; the existing release job remains
+the only publisher of checksummed release packages. Existing `main` branch
+protection still requires all three checks. The GitHub-hosted auto-tag path has
+not yet been observed end to end. See [`docs/ci-cd.md`](docs/ci-cd.md) for the
+rules, manual tag dispatch, and rerun behavior.
 
 ## Versions
 
 | Component | Version |
 | --- | --- |
-| ESP32-S3 firmware | `v1.1.0` |
+| ESP32-S3 firmware | Git-described app version; exact `vX.Y.Z` at a release tag |
 | RP2040 firmware | `v2.1.0` |
 | ESP-IDF | `v5.5.6` |
 | LVGL | `v9.6.0~1` |

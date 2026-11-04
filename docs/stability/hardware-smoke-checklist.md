@@ -36,7 +36,9 @@ separate scoped investigation, not permission to tune drivers in this stage.
 - [ ] Flash the generated bootloader, partition table, and
   `indicator_ha.bin` using the offsets printed by `./dev build`.
 - [ ] Cold boot from power-off and capture the complete serial log.
-- [ ] Confirm the boot banner reports firmware `v1.1.0`.
+- [ ] Confirm the boot banner matches the `App "indicator_ha" version:` value
+  from the build log and Native `DeviceInfo.project_version`. For an exact
+  release-tag build, all three report that `vX.Y.Z` tag.
 - [ ] Confirm initialization reaches board, LVGL, view, then model startup
   without reset loops, watchdogs, assertions, or allocation failures.
 - [ ] Warm-restart the ESP32-S3 and confirm the same result.
